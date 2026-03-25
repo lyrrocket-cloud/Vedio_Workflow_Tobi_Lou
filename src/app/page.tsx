@@ -27,7 +27,7 @@ export default function TransitionVideoGenerator() {
   const [lastFrame, setLastFrame] = useState<File | null>(null);
   const [firstFramePreview, setFirstFramePreview] = useState<string>('');
   const [lastFramePreview, setLastFramePreview] = useState<string>('');
-  const [prompt, setPrompt] = useState<string>('Smooth transition between scenes');
+  const [prompt, setPrompt] = useState<string>('场景之间平滑过渡');
   const [duration, setDuration] = useState<number>(5);
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
@@ -77,14 +77,14 @@ export default function TransitionVideoGenerator() {
 
     const data: UploadResponse = await response.json();
     if (!data.success || !data.url) {
-      throw new Error(data.error || 'Upload failed');
+      throw new Error(data.error || '上传失败');
     }
     return data.url;
   };
 
   const handleGenerate = async () => {
     if (!firstFrame || !lastFrame) {
-      setError('Please upload both first and last frame images');
+      setError('请上传首帧和尾帧图片');
       return;
     }
 
@@ -118,12 +118,12 @@ export default function TransitionVideoGenerator() {
 
       const data: GenerateResponse = await response.json();
       if (!data.success || !data.videoUrl) {
-        throw new Error(data.error || 'Video generation failed');
+        throw new Error(data.error || '视频生成失败');
       }
 
       setVideoUrl(data.videoUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : '发生错误');
     } finally {
       setIsGenerating(false);
     }
@@ -138,27 +138,27 @@ export default function TransitionVideoGenerator() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `transition-video-${Date.now()}.mp4`;
+      link.download = `转场视频-${Date.now()}.mp4`;
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setError('Failed to download video');
+      setError('下载视频失败');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-[#0a0a0f]">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <Sparkles className="w-8 h-8 text-purple-400" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Transition Video Generator
+            <Sparkles className="w-8 h-8 text-[#CEA472]" />
+            <h1 className="text-4xl font-bold text-[#FFFFFF]">
+              转场视频生成器
             </h1>
           </div>
-          <p className="text-slate-400 text-lg">
-            Upload first and last frame images to create stunning AI-powered transition videos
+          <p className="text-[#FFFFFF]/60 text-lg">
+            上传首尾帧图片，AI智能生成流畅转场视频
           </p>
         </div>
 
@@ -166,24 +166,24 @@ export default function TransitionVideoGenerator() {
           {/* Left Column - Upload & Settings */}
           <div className="space-y-6">
             {/* Image Upload Section */}
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-purple-400" />
-                  Frame Upload
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-[#CEA472]" />
+                  帧图片上传
                 </CardTitle>
-                <CardDescription className="text-slate-400">
-                  Upload your start and end frame images
+                <CardDescription className="text-[#FFFFFF]/60">
+                  上传起始帧和结束帧图片
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   {/* First Frame */}
                   <div
-                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 ${
+                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
                       firstFramePreview 
-                        ? 'border-purple-500 bg-purple-500/10' 
-                        : 'border-slate-600 hover:border-purple-400 bg-slate-800/50'
+                        ? 'border-[#CEA472] bg-black/60' 
+                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
                     }`}
                     onDrop={(e) => handleDrop(e, setFirstFrame, setFirstFramePreview)}
                     onDragOver={(e) => e.preventDefault()}
@@ -192,14 +192,14 @@ export default function TransitionVideoGenerator() {
                     {firstFramePreview ? (
                       <img 
                         src={firstFramePreview} 
-                        alt="First frame" 
+                        alt="首帧" 
                         className="w-full h-full object-cover rounded-xl"
                       />
                     ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
                         <Upload className="w-8 h-8 mb-2" />
-                        <span className="text-sm font-medium">First Frame</span>
-                        <span className="text-xs mt-1">Click or drag</span>
+                        <span className="text-sm font-medium">首帧图片</span>
+                        <span className="text-xs mt-1">点击或拖拽上传</span>
                       </div>
                     )}
                     <input
@@ -216,10 +216,10 @@ export default function TransitionVideoGenerator() {
 
                   {/* Last Frame */}
                   <div
-                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 ${
+                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
                       lastFramePreview 
-                        ? 'border-pink-500 bg-pink-500/10' 
-                        : 'border-slate-600 hover:border-pink-400 bg-slate-800/50'
+                        ? 'border-[#CEA472] bg-black/60' 
+                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
                     }`}
                     onDrop={(e) => handleDrop(e, setLastFrame, setLastFramePreview)}
                     onDragOver={(e) => e.preventDefault()}
@@ -228,14 +228,14 @@ export default function TransitionVideoGenerator() {
                     {lastFramePreview ? (
                       <img 
                         src={lastFramePreview} 
-                        alt="Last frame" 
+                        alt="尾帧" 
                         className="w-full h-full object-cover rounded-xl"
                       />
                     ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
                         <Upload className="w-8 h-8 mb-2" />
-                        <span className="text-sm font-medium">Last Frame</span>
-                        <span className="text-xs mt-1">Click or drag</span>
+                        <span className="text-sm font-medium">尾帧图片</span>
+                        <span className="text-xs mt-1">点击或拖拽上传</span>
                       </div>
                     )}
                     <input
@@ -253,11 +253,11 @@ export default function TransitionVideoGenerator() {
 
                 {/* Transition Arrow */}
                 {firstFramePreview && lastFramePreview && (
-                  <div className="flex items-center justify-center mt-4 text-purple-400">
-                    <div className="flex items-center gap-2 bg-purple-500/20 px-4 py-2 rounded-full">
-                      <span className="text-sm">Start</span>
+                  <div className="flex items-center justify-center mt-4 text-[#CEA472]">
+                    <div className="flex items-center gap-2 bg-[#CEA472]/10 border border-[#CEA472]/30 px-4 py-2 rounded-full">
+                      <span className="text-sm">起始帧</span>
                       <ArrowRight className="w-4 h-4" />
-                      <span className="text-sm">End</span>
+                      <span className="text-sm">结束帧</span>
                     </div>
                   </div>
                 )}
@@ -265,19 +265,19 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* Settings Section */}
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
-                <CardTitle className="text-white">Generation Settings</CardTitle>
+                <CardTitle className="text-[#FFFFFF]">生成设置</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Prompt */}
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Transition Prompt</Label>
+                  <Label className="text-[#FFFFFF]/80">转场描述</Label>
                   <Textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the transition effect..."
-                    className="bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500 resize-none"
+                    placeholder="描述转场效果..."
+                    className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
                     rows={3}
                   />
                 </div>
@@ -285,8 +285,8 @@ export default function TransitionVideoGenerator() {
                 {/* Duration */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-slate-300">Duration</Label>
-                    <span className="text-purple-400 font-medium">{duration}s</span>
+                    <Label className="text-[#FFFFFF]/80">视频时长</Label>
+                    <span className="text-[#CEA472] font-medium">{duration}秒</span>
                   </div>
                   <Slider
                     value={[duration]}
@@ -301,30 +301,30 @@ export default function TransitionVideoGenerator() {
                 {/* Resolution & Ratio */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Resolution</Label>
+                    <Label className="text-[#FFFFFF]/80">分辨率</Label>
                     <Select value={resolution} onValueChange={setResolution}>
-                      <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white">
+                      <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="480p">480p</SelectItem>
-                        <SelectItem value="720p">720p</SelectItem>
-                        <SelectItem value="1080p">1080p</SelectItem>
+                      <SelectContent className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30">
+                        <SelectItem value="480p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">480p</SelectItem>
+                        <SelectItem value="720p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">720p</SelectItem>
+                        <SelectItem value="1080p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">1080p</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-slate-300">Aspect Ratio</Label>
+                    <Label className="text-[#FFFFFF]/80">宽高比</Label>
                     <Select value={ratio} onValueChange={setRatio}>
-                      <SelectTrigger className="bg-slate-900/50 border-slate-600 text-white">
+                      <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="16:9">16:9</SelectItem>
-                        <SelectItem value="9:16">9:16</SelectItem>
-                        <SelectItem value="1:1">1:1</SelectItem>
-                        <SelectItem value="4:3">4:3</SelectItem>
-                        <SelectItem value="3:4">3:4</SelectItem>
+                      <SelectContent className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30">
+                        <SelectItem value="16:9" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">16:9</SelectItem>
+                        <SelectItem value="9:16" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">9:16</SelectItem>
+                        <SelectItem value="1:1" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">1:1</SelectItem>
+                        <SelectItem value="4:3" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">4:3</SelectItem>
+                        <SelectItem value="3:4" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">3:4</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -333,8 +333,8 @@ export default function TransitionVideoGenerator() {
                 {/* Audio Toggle */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label className="text-slate-300">Generate Audio</Label>
-                    <p className="text-xs text-slate-500 mt-1">AI-generated sound effects and music</p>
+                    <Label className="text-[#FFFFFF]/80">生成音频</Label>
+                    <p className="text-xs text-[#FFFFFF]/50 mt-1">AI自动生成音效和背景音乐</p>
                   </div>
                   <Switch
                     checked={generateAudio}
@@ -348,24 +348,24 @@ export default function TransitionVideoGenerator() {
             <Button
               onClick={handleGenerate}
               disabled={isGenerating || !firstFrame || !lastFrame}
-              className="w-full h-14 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold text-lg rounded-xl shadow-lg shadow-purple-500/25 transition-all duration-300 disabled:opacity-50"
+              className="w-full h-14 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-lg rounded-xl transition-all duration-300 disabled:opacity-50"
             >
               {isGenerating ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Generating Video...
+                  正在生成视频...
                 </>
               ) : (
                 <>
                   <Play className="w-5 h-5 mr-2" />
-                  Generate Transition Video
+                  生成转场视频
                 </>
               )}
             </Button>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-400 text-sm">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -373,26 +373,26 @@ export default function TransitionVideoGenerator() {
 
           {/* Right Column - Video Preview */}
           <div className="space-y-6">
-            <Card className="bg-slate-800/50 border-slate-700 backdrop-blur-sm h-full">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500 h-full">
               <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <span>Generated Video</span>
+                <CardTitle className="text-[#FFFFFF] flex items-center justify-between">
+                  <span>生成结果</span>
                   {videoUrl && (
                     <Button
                       onClick={handleDownload}
                       variant="outline"
                       size="sm"
-                      className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      Download
+                      下载视频
                     </Button>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {videoUrl ? (
-                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                  <div className="aspect-video rounded-xl overflow-hidden bg-black border border-[#CEA472]/20">
                     <video
                       src={videoUrl}
                       controls
@@ -402,11 +402,11 @@ export default function TransitionVideoGenerator() {
                     />
                   </div>
                 ) : (
-                  <div className="aspect-video rounded-xl border-2 border-dashed border-slate-600 bg-slate-900/30 flex items-center justify-center">
-                    <div className="text-center text-slate-500">
+                  <div className="aspect-video rounded-xl border-2 border-dashed border-[#CEA472]/20 bg-black/40 flex items-center justify-center">
+                    <div className="text-center text-[#FFFFFF]/50">
                       <Play className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium">No video generated yet</p>
-                      <p className="text-sm mt-2">Upload frames and click generate</p>
+                      <p className="text-lg font-medium">暂无生成视频</p>
+                      <p className="text-sm mt-2">上传首尾帧后点击生成</p>
                     </div>
                   </div>
                 )}
@@ -416,8 +416,8 @@ export default function TransitionVideoGenerator() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 text-slate-500 text-sm">
-          Powered by AI Video Generation Model
+        <div className="text-center mt-12 text-[#FFFFFF]/30 text-sm">
+          由 AI 视频生成模型驱动
         </div>
       </div>
     </div>
