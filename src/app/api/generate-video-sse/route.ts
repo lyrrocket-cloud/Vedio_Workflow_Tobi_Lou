@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
           },
           {
             type: 'text',
-            text: prompt || '场景之间平滑过渡',
+            text: prompt || '从首帧平滑过渡到尾帧，确保视频最后一帧与尾帧图片完全一致',
           },
         ];
 

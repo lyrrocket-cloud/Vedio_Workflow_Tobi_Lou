@@ -40,7 +40,7 @@ export default function TransitionVideoGenerator() {
   const [lastFrame, setLastFrame] = useState<File | null>(null);
   const [firstFramePreview, setFirstFramePreview] = useState<string>('');
   const [lastFramePreview, setLastFramePreview] = useState<string>('');
-  const [prompt, setPrompt] = useState<string>('场景之间平滑过渡');
+  const [prompt, setPrompt] = useState<string>('从首帧平滑过渡到尾帧，确保视频最后一帧与尾帧图片完全一致');
   const [duration, setDuration] = useState<number>(5);
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
@@ -606,8 +606,8 @@ export default function TransitionVideoGenerator() {
             )}
 
             {/* Video Preview */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500 h-full">
-              <CardHeader>
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-[#FFFFFF] flex items-center justify-between">
                   <span>生成结果</span>
                   {videoUrl && (
@@ -637,9 +637,9 @@ export default function TransitionVideoGenerator() {
                 ) : (
                   <div className="aspect-video rounded-xl border-2 border-dashed border-[#CEA472]/20 bg-black/40 flex items-center justify-center">
                     <div className="text-center text-[#FFFFFF]/50">
-                      <Play className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium">暂无生成视频</p>
-                      <p className="text-sm mt-2">上传首尾帧后点击生成</p>
+                      <Play className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-base font-medium">暂无生成视频</p>
+                      <p className="text-sm mt-1">上传首尾帧后点击生成</p>
                     </div>
                   </div>
                 )}
