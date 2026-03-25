@@ -9,6 +9,7 @@ interface GenerateVideoRequest {
   resolution: string;
   ratio: string;
   generateAudio: boolean;
+  mockMode?: boolean;
 }
 
 // SSE helper to send events
@@ -17,9 +18,60 @@ function sendEvent(controller: ReadableStreamDefaultController, event: string, d
   controller.enqueue(new TextEncoder().encode(message));
 }
 
+// Mock video generation for testing
+async function mockVideoGeneration(
+  controller: ReadableStreamDefaultController,
+  startTime: number,
+  duration: number,
+  resolution: string,
+  ratio: string
+) {
+  const steps = [
+    { progress: 15, message: '初始化视频生成客户端...' },
+    { progress: 20, message: '准备首尾帧图片数据...' },
+    { progress: 30, message: 'AI模型正在分析首尾帧图片...' },
+    { progress: 40, message: '正在生成转场动画...' },
+    { progress: 50, message: '计算帧间过渡效果...' },
+    { progress: 60, message: '渲染中间帧画面...' },
+    { progress: 70, message: '优化视频流畅度...' },
+    { progress: 80, message: '处理画面细节...' },
+    { progress: 90, message: '视频生成完成，准备播放...' },
+  ];
+
+  for (const step of steps) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    sendEvent(controller, 'status', {
+      step: 'processing',
+      message: step.message,
+      timestamp: new Date().toISOString(),
+      progress: step.progress,
+      elapsed: Math.floor((Date.now() - startTime) / 1000),
+    });
+  }
+
+  const totalTime = Math.floor((Date.now() - startTime) / 1000);
+  
+  // Return mock video URL
+  sendEvent(controller, 'complete', {
+    step: 'complete',
+    message: '转场视频生成成功！(模拟模式)',
+    timestamp: new Date().toISOString(),
+    progress: 100,
+    videoUrl: 'https://coze-coding-mockdata.tos-cn-beijing.volces.com/video_g1hsdk.mp4',
+    taskId: `mock_${Date.now()}`,
+    status: 'succeeded',
+    totalTime,
+    duration,
+    resolution,
+    ratio,
+  });
+
+  controller.close();
+}
+
 export async function POST(request: NextRequest) {
   const body: GenerateVideoRequest = await request.json();
-  const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio } = body;
+  const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio, mockMode } = body;
 
   // Validate required fields
   if (!firstFrameUrl || !lastFrameUrl) {
@@ -34,15 +86,21 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       const startTime = Date.now();
       
-      try {
-        // Step 1: Initialize
-        sendEvent(controller, 'status', {
-          step: 'init',
-          message: '初始化视频生成客户端...',
-          timestamp: new Date().toISOString(),
-          progress: 5,
-        });
+      // Step 1: Initialize
+      sendEvent(controller, 'status', {
+        step: 'init',
+        message: mockMode ? '🧪 模拟模式：初始化视频生成...' : '初始化视频生成客户端...',
+        timestamp: new Date().toISOString(),
+        progress: 5,
+      });
 
+      // If mock mode, use mock generation
+      if (mockMode) {
+        await mockVideoGeneration(controller, startTime, duration || 5, resolution || '720p', ratio || '16:9');
+        return;
+      }
+
+      try {
         // Extract headers for forwarding
         const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
 
@@ -99,7 +157,7 @@ export async function POST(request: NextRequest) {
         // Start video generation (this will poll internally)
         const progressInterval = setInterval(() => {
           const elapsed = Date.now() - startTime;
-          const progress = Math.min(85, 20 + Math.floor(elapsed / 5000) * 5); // Increase progress over time, max 85%
+          const progress = Math.min(85, 20 + Math.floor(elapsed / 5000) * 5);
           
           const messages = [
             '正在生成转场动画...',
@@ -175,11 +233,26 @@ export async function POST(request: NextRequest) {
 
         controller.close();
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '视频生成过程中发生错误';
+        
+        // Parse error details for better user feedback
+        let userMessage = errorMessage;
+        if (errorMessage.includes('403')) {
+          userMessage = '⚠️ 视频生成服务权限不足。请尝试开启"模拟模式"进行测试，或联系管理员获取API权限。';
+        } else if (errorMessage.includes('401')) {
+          userMessage = '⚠️ API认证失败，请联系管理员';
+        } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+          userMessage = '⚠️ 请求超时，请稍后重试';
+        } else if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
+          userMessage = '⚠️ 网络连接失败，请检查网络后重试';
+        }
+        
         sendEvent(controller, 'error', {
           step: 'error',
-          message: error instanceof Error ? error.message : '视频生成过程中发生错误',
+          message: userMessage,
           timestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.stack : String(error),
+          progress: 0,
+          error: errorMessage,
         });
         controller.close();
       }

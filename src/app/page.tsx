@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -45,6 +45,7 @@ export default function TransitionVideoGenerator() {
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
   const [generateAudio, setGenerateAudio] = useState<boolean>(true);
+  const [mockMode, setMockMode] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -166,6 +167,7 @@ export default function TransitionVideoGenerator() {
           resolution,
           ratio,
           generateAudio,
+          mockMode,
         }),
       });
 
@@ -477,6 +479,21 @@ export default function TransitionVideoGenerator() {
                   <Switch
                     checked={generateAudio}
                     onCheckedChange={setGenerateAudio}
+                  />
+                </div>
+
+                {/* Mock Mode Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-[#CEA472]/5 border border-[#CEA472]/20">
+                  <div>
+                    <Label className="text-[#CEA472]/80 flex items-center gap-2">
+                      <Info className="w-4 h-4" />
+                      模拟模式
+                    </Label>
+                    <p className="text-xs text-[#FFFFFF]/50 mt-1">无API权限时可用于测试流程</p>
+                  </div>
+                  <Switch
+                    checked={mockMode}
+                    onCheckedChange={setMockMode}
                   />
                 </div>
               </CardContent>

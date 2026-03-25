@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
+        { success: false, error: '请选择要上传的文件' },
         { status: 400 }
       );
     }
@@ -16,7 +16,15 @@ export async function POST(request: NextRequest) {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       return NextResponse.json(
-        { success: false, error: 'Only image files are allowed' },
+        { success: false, error: '只支持图片文件上传' },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { success: false, error: '图片文件大小不能超过10MB' },
         { status: 400 }
       );
     }
@@ -36,8 +44,9 @@ export async function POST(request: NextRequest) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const originalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const fileName = `transition-frames/${timestamp}_${originalName}`;
+    const randomSuffix = Math.random().toString(36).slice(2, 8);
+    const ext = file.name.split('.').pop() || 'jpg';
+    const fileName = `transition-frames/${timestamp}_${randomSuffix}.${ext}`;
 
     // Upload to object storage
     const key = await storage.uploadFile({
@@ -46,11 +55,13 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
     });
 
-    // Generate presigned URL for access
+    // Generate presigned URL for access (extended to 2 hours for video generation)
     const url = await storage.generatePresignedUrl({
       key,
-      expireTime: 3600, // 1 hour
+      expireTime: 7200, // 2 hours - enough time for video generation
     });
+
+    console.log('Image uploaded successfully:', { key, urlLength: url.length });
 
     return NextResponse.json({
       success: true,
@@ -62,7 +73,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Upload failed' 
+        error: error instanceof Error ? error.message : '上传失败，请重试' 
       },
       { status: 500 }
     );
