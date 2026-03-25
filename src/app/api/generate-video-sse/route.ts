@@ -247,6 +247,8 @@ export async function POST(request: NextRequest) {
           resolution,
           ratio,
           generateAudio,
+          maxWaitTime: 900,
+          说明: 'SDK内部会轮询任务状态，这是阻塞调用，无法获取实时进度',
         });
         
         const apiCallStartTime = Date.now();
