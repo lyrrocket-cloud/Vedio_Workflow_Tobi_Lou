@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -16,10 +17,22 @@ interface UploadResponse {
   error?: string;
 }
 
-interface GenerateResponse {
-  success: boolean;
-  videoUrl?: string;
-  error?: string;
+interface LogEntry {
+  id: string;
+  step: string;
+  message: string;
+  timestamp: string;
+  progress: number;
+  type: 'status' | 'complete' | 'error';
+  details?: {
+    elapsed?: number;
+    taskId?: string;
+    duration?: number;
+    resolution?: string;
+    ratio?: string;
+    totalTime?: number;
+    error?: string;
+  };
 }
 
 export default function TransitionVideoGenerator() {
@@ -35,9 +48,18 @@ export default function TransitionVideoGenerator() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [currentProgress, setCurrentProgress] = useState<number>(0);
+  const [totalTime, setTotalTime] = useState<number>(0);
   
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
 
   const handleImageUpload = useCallback((
     file: File,
@@ -66,6 +88,15 @@ export default function TransitionVideoGenerator() {
     }
   }, [handleImageUpload]);
 
+  const addLog = (entry: Omit<LogEntry, 'id'>) => {
+    const newEntry: LogEntry = {
+      ...entry,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+    };
+    setLogs(prev => [...prev, newEntry]);
+    setCurrentProgress(entry.progress);
+  };
+
   const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -91,16 +122,38 @@ export default function TransitionVideoGenerator() {
     setIsGenerating(true);
     setError('');
     setVideoUrl('');
+    setLogs([]);
+    setCurrentProgress(0);
+    setTotalTime(0);
 
     try {
       // Upload both images
+      addLog({
+        step: 'upload',
+        message: '正在上传首帧图片...',
+        timestamp: new Date().toISOString(),
+        progress: 2,
+        type: 'status',
+      });
+
       const [firstFrameUrl, lastFrameUrl] = await Promise.all([
         uploadImage(firstFrame),
-        uploadImage(lastFrame),
+        uploadImage(lastFrame).then(url => {
+          addLog({
+            step: 'upload',
+            message: '图片上传完成',
+            timestamp: new Date().toISOString(),
+            progress: 8,
+            type: 'status',
+          });
+          return url;
+        }),
       ]);
 
-      // Generate video
-      const response = await fetch('/api/generate-video', {
+      // Use SSE for video generation
+      const startTime = Date.now();
+      
+      const response = await fetch('/api/generate-video-sse', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,14 +169,84 @@ export default function TransitionVideoGenerator() {
         }),
       });
 
-      const data: GenerateResponse = await response.json();
-      if (!data.success || !data.videoUrl) {
-        throw new Error(data.error || '视频生成失败');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      setVideoUrl(data.videoUrl);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('无法获取响应流');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
+            if (eventMatch) {
+              const eventType = eventMatch[1];
+              const data = JSON.parse(eventMatch[2]);
+
+              if (eventType === 'status') {
+                addLog({
+                  step: data.step as string,
+                  message: data.message as string,
+                  timestamp: data.timestamp as string,
+                  progress: data.progress as number,
+                  type: 'status',
+                  details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
+                });
+              } else if (eventType === 'complete') {
+                setVideoUrl(data.videoUrl as string);
+                setTotalTime(data.totalTime as number);
+                addLog({
+                  step: data.step as string,
+                  message: data.message as string,
+                  timestamp: data.timestamp as string,
+                  progress: 100,
+                  type: 'complete',
+                  details: {
+                    taskId: data.taskId as string,
+                    duration: data.duration as number,
+                    resolution: data.resolution as string,
+                    ratio: data.ratio as string,
+                    totalTime: data.totalTime as number,
+                  },
+                });
+              } else if (eventType === 'error') {
+                setError(data.message as string);
+                addLog({
+                  step: data.step as string,
+                  message: data.message as string,
+                  timestamp: data.timestamp as string,
+                  progress: (data.progress as number) || 0,
+                  type: 'error',
+                  details: { error: data.error as string },
+                });
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '发生错误');
+      const errorMessage = err instanceof Error ? err.message : '发生错误';
+      setError(errorMessage);
+      addLog({
+        step: 'error',
+        message: errorMessage,
+        timestamp: new Date().toISOString(),
+        progress: 0,
+        type: 'error',
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -144,6 +267,21 @@ export default function TransitionVideoGenerator() {
     } catch (err) {
       setError('下载视频失败');
     }
+  };
+
+  const getStepIcon = (type: string, step: string) => {
+    if (type === 'complete') return <CheckCircle className="w-4 h-4 text-[#CEA472]" />;
+    if (type === 'error') return <AlertCircle className="w-4 h-4 text-red-400" />;
+    if (step === 'processing') return <Zap className="w-4 h-4 text-[#CEA472] animate-pulse" />;
+    return <Clock className="w-4 h-4 text-[#CEA472]/60" />;
+  };
+
+  const formatTime = (isoString: string) => {
+    return new Date(isoString).toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   };
 
   return (
@@ -371,8 +509,86 @@ export default function TransitionVideoGenerator() {
             )}
           </div>
 
-          {/* Right Column - Video Preview */}
+          {/* Right Column - Status Logs & Video Preview */}
           <div className="space-y-6">
+            {/* Status Logs */}
+            {(logs.length > 0 || isGenerating) && (
+              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-[#FFFFFF] text-base flex items-center gap-2">
+                      <Zap className={`w-4 h-4 text-[#CEA472] ${isGenerating ? 'animate-pulse' : ''}`} />
+                      运行状态
+                    </CardTitle>
+                    {totalTime > 0 && (
+                      <span className="text-[#CEA472] text-sm font-medium">
+                        总耗时: {totalTime}秒
+                      </span>
+                    )}
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[#FFFFFF]/60 text-xs">进度</span>
+                      <span className="text-[#CEA472] text-xs font-medium">{currentProgress}%</span>
+                    </div>
+                    <Progress 
+                      value={currentProgress} 
+                      className="h-2 bg-black/60 [&>div]:bg-[#CEA472]"
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* Log Entries */}
+                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-[#CEA472]/20 scrollbar-track-transparent">
+                    {logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className={`flex items-start gap-2 p-2 rounded-lg ${
+                          log.type === 'error' 
+                            ? 'bg-red-500/10 border border-red-500/20' 
+                            : log.type === 'complete'
+                            ? 'bg-[#CEA472]/10 border border-[#CEA472]/20'
+                            : 'bg-black/40'
+                        }`}
+                      >
+                        {getStepIcon(log.type, log.step)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-sm ${
+                              log.type === 'error' 
+                                ? 'text-red-400' 
+                                : log.type === 'complete'
+                                ? 'text-[#CEA472]'
+                                : 'text-[#FFFFFF]/80'
+                            }`}>
+                              {log.message}
+                            </span>
+                            <span className="text-[#FFFFFF]/40 text-xs shrink-0">
+                              {formatTime(log.timestamp)}
+                            </span>
+                          </div>
+                          {log.details && (
+                            <div className="mt-1 text-xs text-[#FFFFFF]/40">
+                              {log.details.elapsed && <span>已用时: {log.details.elapsed}秒</span>}
+                              {log.details.taskId && (
+                                <span className="block">任务ID: {String(log.details.taskId).slice(0, 20)}...</span>
+                              )}
+                              {log.details.duration && (
+                                <span className="block">视频时长: {log.details.duration}秒 | 分辨率: {log.details.resolution} | 比例: {log.details.ratio}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={logsEndRef} />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Video Preview */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500 h-full">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center justify-between">
