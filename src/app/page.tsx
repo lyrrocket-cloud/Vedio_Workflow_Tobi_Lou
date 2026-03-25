@@ -24,6 +24,7 @@ interface LogEntry {
   timestamp: string;
   progress: number;
   type: 'status' | 'complete' | 'error';
+  note?: string;
   details?: {
     elapsed?: number;
     taskId?: string;
@@ -422,6 +423,7 @@ export default function TransitionVideoGenerator() {
                   timestamp: data.timestamp as string,
                   progress: data.progress as number,
                   type: 'status',
+                  note: data.note as string | undefined,
                   details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
                 });
               } else if (eventType === 'complete') {
@@ -887,6 +889,11 @@ export default function TransitionVideoGenerator() {
                               {formatTime(log.timestamp)}
                             </span>
                           </div>
+                          {log.note && (
+                            <div className="mt-1.5 p-1.5 bg-[#CEA472]/5 rounded text-xs text-[#CEA472]/80">
+                              {log.note}
+                            </div>
+                          )}
                           {log.details && (
                             <div className="mt-1 text-xs text-[#FFFFFF]/40">
                               {log.details.elapsed && <span>已用时: {log.details.elapsed}秒</span>}

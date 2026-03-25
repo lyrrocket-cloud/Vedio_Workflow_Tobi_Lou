@@ -184,36 +184,59 @@ export async function POST(request: NextRequest) {
         const client = new VideoGenerationClient(config, customHeaders as Record<string, string>);
         log('CLIENT_READY', '客户端初始化完成');
 
-        // Step 4: Processing - simulate progress updates
+        // Step 4: Processing - show real waiting status
         sendEvent(controller, 'status', {
           step: 'processing',
-          message: 'AI模型正在分析首尾帧图片...',
+          message: '🎬 已提交任务到AI视频生成服务，等待处理...',
           timestamp: new Date().toISOString(),
           progress: 20,
         });
 
-        // Start video generation (this will poll internally)
+        // Start video generation with real-time status updates
+        // Note: SDK's videoGeneration() is a blocking call that polls internally
+        // We send heartbeat events to show the connection is alive
+        let apiCallPhase = '提交任务';
+        let lastPhaseTime = Date.now();
+        
         const progressInterval = setInterval(() => {
-          const elapsed = Date.now() - startTime;
-          const progress = Math.min(85, 20 + Math.floor(elapsed / 5000) * 5);
+          const elapsed = Math.floor((Date.now() - startTime) / 1000);
+          const elapsedSinceLastPhase = Date.now() - lastPhaseTime;
           
-          const messages = [
-            '正在生成转场动画...',
-            '计算帧间过渡效果...',
-            '渲染中间帧画面...',
-            '优化视频流畅度...',
-            '处理画面细节...',
-            '生成动态效果...',
-          ];
+          // Update phase message based on elapsed time to give user better feedback
+          if (elapsed < 30) {
+            apiCallPhase = '初始化AI模型';
+          } else if (elapsed < 60) {
+            apiCallPhase = '分析首尾帧图片';
+          } else if (elapsed < 120) {
+            apiCallPhase = '生成中间帧序列';
+          } else if (elapsed < 180) {
+            apiCallPhase = '渲染视频画面';
+          } else if (elapsed < 240) {
+            apiCallPhase = '优化视频质量';
+          } else {
+            apiCallPhase = '最终处理中';
+          }
           
-          const randomMessage = messages[Math.floor((elapsed / 3000) % messages.length)];
+          // Log every 30 seconds for debugging
+          if (elapsedSinceLastPhase > 30000) {
+            log('API_WAITING', `等待API响应 - ${apiCallPhase}`, {
+              elapsedSeconds: elapsed,
+              phase: apiCallPhase,
+            });
+            lastPhaseTime = Date.now();
+          }
+          
+          // Progress caps at 85% since we don't know real progress
+          // The progress shown is just to indicate activity, not real completion percentage
+          const displayProgress = Math.min(85, 20 + Math.floor(elapsed / 10));
           
           sendEvent(controller, 'status', {
             step: 'processing',
-            message: randomMessage,
+            message: `⏳ ${apiCallPhase}... (已等待 ${elapsed} 秒)`,
             timestamp: new Date().toISOString(),
-            progress,
-            elapsed: Math.floor(elapsed / 1000),
+            progress: displayProgress,
+            elapsed,
+            note: '⚠️ 进度显示为估算值，实际进度未知。视频生成通常需要2-5分钟，请耐心等待。',
           });
         }, 3000);
 
