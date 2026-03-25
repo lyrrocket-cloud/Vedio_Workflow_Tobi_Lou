@@ -290,16 +290,13 @@ export default function TransitionVideoGenerator() {
     <div className="min-h-screen bg-[#0a0a0f]">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center gap-3">
             <Sparkles className="w-8 h-8 text-[#CEA472]" />
             <h1 className="text-4xl font-bold text-[#FFFFFF]">
-              转场视频生成器
+              首尾帧视频生成器
             </h1>
           </div>
-          <p className="text-[#FFFFFF]/60 text-lg">
-            上传首尾帧图片，AI智能生成流畅转场视频
-          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
