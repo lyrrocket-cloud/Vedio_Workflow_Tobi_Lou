@@ -52,6 +52,16 @@ interface HistoryItem {
 const HISTORY_STORAGE_KEY = 'video-generation-history';
 const MAX_HISTORY_ITEMS = 20;
 
+interface TechnicalLog {
+  id: string;
+  timestamp: string;
+  type: 'request' | 'response' | 'event' | 'error' | 'info';
+  category: string;
+  message: string;
+  details?: Record<string, unknown>;
+  elapsed?: number;
+}
+
 export default function TransitionVideoGenerator() {
   const [firstFrame, setFirstFrame] = useState<File | null>(null);
   const [lastFrame, setLastFrame] = useState<File | null>(null);
@@ -74,6 +84,10 @@ export default function TransitionVideoGenerator() {
   const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [canCancel, setCanCancel] = useState<boolean>(false);
+  
+  // Technical logs for debugging
+  const [technicalLogs, setTechnicalLogs] = useState<TechnicalLog[]>([]);
+  const [showTechnicalLogs, setShowTechnicalLogs] = useState<boolean>(false);
   
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
@@ -177,6 +191,33 @@ export default function TransitionVideoGenerator() {
     setCurrentProgress(entry.progress);
   };
 
+  // Technical log for debugging
+  const generationStartTimeRef = useRef<number>(0);
+  
+  const addTechnicalLog = (
+    type: TechnicalLog['type'],
+    category: string,
+    message: string,
+    details?: Record<string, unknown>
+  ) => {
+    const elapsed = generationStartTimeRef.current > 0 
+      ? Math.round((Date.now() - generationStartTimeRef.current) / 1000)
+      : undefined;
+    
+    const newLog: TechnicalLog = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      timestamp: new Date().toISOString(),
+      type,
+      category,
+      message,
+      details,
+      elapsed,
+    };
+    
+    setTechnicalLogs(prev => [...prev, newLog]);
+    console.log(`[${category}] ${message}`, details || '');
+  };
+
   const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
@@ -198,6 +239,19 @@ export default function TransitionVideoGenerator() {
       setError('请上传首帧和尾帧图片');
       return;
     }
+
+    // Reset technical logs
+    generationStartTimeRef.current = Date.now();
+    setTechnicalLogs([]);
+    
+    addTechnicalLog('info', '初始化', '开始生成视频', {
+      文件信息: {
+        首帧: { name: firstFrame.name, size: `${(firstFrame.size / 1024).toFixed(2)}KB`, type: firstFrame.type },
+        尾帧: { name: lastFrame.name, size: `${(lastFrame.size / 1024).toFixed(2)}KB`, type: lastFrame.type },
+      },
+      参数设置: { duration, resolution, ratio, generateAudio, mockMode },
+      prompt: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : ''),
+    });
 
     setIsGenerating(true);
     setError('');
@@ -226,10 +280,22 @@ export default function TransitionVideoGenerator() {
         progress: 2,
         type: 'status',
       });
+      
+      addTechnicalLog('request', '上传', '开始上传图片到对象存储');
 
+      const uploadStartTime = Date.now();
       const [firstFrameUrl, lastFrameUrl] = await Promise.all([
-        uploadImage(firstFrame),
+        uploadImage(firstFrame).then(url => {
+          addTechnicalLog('response', '上传', '首帧图片上传完成', {
+            url: url.substring(0, 100) + '...',
+            耗时: `${Math.round((Date.now() - uploadStartTime) / 1000)}秒`,
+          });
+          return url;
+        }),
         uploadImage(lastFrame).then(url => {
+          addTechnicalLog('response', '上传', '尾帧图片上传完成', {
+            url: url.substring(0, 100) + '...',
+          });
           addLog({
             step: 'upload',
             message: '图片上传完成',
@@ -240,8 +306,26 @@ export default function TransitionVideoGenerator() {
           return url;
         }),
       ]);
+      
+      addTechnicalLog('info', '上传', '所有图片上传完成', {
+        总耗时: `${Math.round((Date.now() - uploadStartTime) / 1000)}秒`,
+      });
 
       // Use SSE for video generation
+      addTechnicalLog('request', '视频生成', '发起SSE视频生成请求', {
+        endpoint: '/api/generate-video-sse',
+        body: {
+          duration,
+          resolution,
+          ratio,
+          generateAudio,
+          mockMode,
+          firstFrameUrl: firstFrameUrl.substring(0, 100) + '...',
+          lastFrameUrl: lastFrameUrl.substring(0, 100) + '...',
+        },
+      });
+      
+      const sseStartTime = Date.now();
       const response = await fetch('/api/generate-video-sse', {
         method: 'POST',
         headers: {
@@ -259,8 +343,21 @@ export default function TransitionVideoGenerator() {
         }),
         signal: abortControllerRef.current.signal,
       });
+      
+      addTechnicalLog('response', '视频生成', 'SSE连接建立', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        连接耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
+      });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        addTechnicalLog('error', '视频生成', 'SSE请求失败', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText.substring(0, 500),
+        });
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -268,13 +365,24 @@ export default function TransitionVideoGenerator() {
       if (!reader) {
         throw new Error('无法获取响应流');
       }
+      
+      addTechnicalLog('info', '视频生成', '开始读取SSE流');
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let eventCount = 0;
 
       while (true) {
+        const readStartTime = Date.now();
         const { done, value } = await reader.read();
-        if (done) break;
+        
+        if (done) {
+          addTechnicalLog('info', '视频生成', 'SSE流读取完成', {
+            总事件数: eventCount,
+            总耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
+          });
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
@@ -282,10 +390,30 @@ export default function TransitionVideoGenerator() {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
+            eventCount++;
             const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
             if (eventMatch) {
               const eventType = eventMatch[1];
-              const data = JSON.parse(eventMatch[2]);
+              const rawData = eventMatch[2];
+              let data;
+              try {
+                data = JSON.parse(rawData);
+              } catch (e) {
+                addTechnicalLog('error', 'SSE解析', 'JSON解析失败', {
+                  rawData: rawData.substring(0, 200),
+                });
+                continue;
+              }
+
+              addTechnicalLog('event', 'SSE事件', `${eventType}`, {
+                事件序号: eventCount,
+                时间戳: data.timestamp,
+                进度: data.progress,
+                步骤: data.step,
+                消息: data.message,
+                原始数据: data,
+                读取耗时: `${Date.now() - readStartTime}ms`,
+              });
 
               if (eventType === 'status') {
                 addLog({
@@ -315,6 +443,13 @@ export default function TransitionVideoGenerator() {
                     totalTime: newTotalTime,
                   },
                 });
+                
+                addTechnicalLog('info', '完成', '视频生成成功', {
+                  视频URL: newVideoUrl.substring(0, 100) + '...',
+                  总耗时: `${newTotalTime}秒`,
+                  taskId: data.taskId,
+                });
+                
                 // Save to history
                 saveToHistory({
                   videoUrl: newVideoUrl,
@@ -337,6 +472,11 @@ export default function TransitionVideoGenerator() {
                   type: 'error',
                   details: { error: data.error as string },
                 });
+                
+                addTechnicalLog('error', '错误', data.message, {
+                  错误详情: data.error,
+                  完整数据: data,
+                });
               }
             }
           }
@@ -345,6 +485,7 @@ export default function TransitionVideoGenerator() {
     } catch (err) {
       // Handle abort error
       if (err instanceof Error && err.name === 'AbortError') {
+        addTechnicalLog('info', '取消', '用户取消视频生成');
         addLog({
           step: 'cancelled',
           message: '用户取消了视频生成',
@@ -354,6 +495,9 @@ export default function TransitionVideoGenerator() {
         });
       } else {
         const errorMessage = err instanceof Error ? err.message : '发生错误';
+        addTechnicalLog('error', '异常', errorMessage, {
+          错误堆栈: err instanceof Error ? err.stack : undefined,
+        });
         setError(errorMessage);
         addLog({
           step: 'error',
@@ -919,6 +1063,110 @@ export default function TransitionVideoGenerator() {
                             })}
                           </p>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Technical Logs Section - Debug Panel */}
+        {technicalLogs.length > 0 && (
+          <div className="mt-8">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2 text-base">
+                    <Info className="w-5 h-5 text-[#CEA472]" />
+                    技术日志
+                    <span className="text-xs text-[#CEA472]/60 font-normal ml-2">
+                      (调试面板 - 排查性能问题)
+                    </span>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        const logText = technicalLogs.map(log => 
+                          `[${log.timestamp}] [${log.elapsed ?? 0}s] [${log.type.toUpperCase()}] [${log.category}] ${log.message}\n${log.details ? JSON.stringify(log.details, null, 2) : ''}`
+                        ).join('\n\n');
+                        navigator.clipboard.writeText(logText);
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                    >
+                      复制日志
+                    </Button>
+                    <Button
+                      onClick={() => setShowTechnicalLogs(!showTechnicalLogs)}
+                      variant="outline"
+                      size="sm"
+                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                    >
+                      {showTechnicalLogs ? '收起' : '展开'} ({technicalLogs.length})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              {showTechnicalLogs && (
+                <CardContent>
+                  <div className="max-h-[500px] overflow-y-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-[#CEA472]/20 scrollbar-track-transparent font-mono text-xs">
+                    {technicalLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className={`p-3 rounded-lg border ${
+                          log.type === 'error' 
+                            ? 'bg-red-500/5 border-red-500/20' 
+                            : log.type === 'event'
+                            ? 'bg-[#CEA472]/5 border-[#CEA472]/10'
+                            : log.type === 'request'
+                            ? 'bg-blue-500/5 border-blue-500/20'
+                            : log.type === 'response'
+                            ? 'bg-green-500/5 border-green-500/20'
+                            : 'bg-black/40 border-[#CEA472]/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            log.type === 'error' 
+                              ? 'bg-red-500/20 text-red-400' 
+                              : log.type === 'event'
+                              ? 'bg-[#CEA472]/20 text-[#CEA472]'
+                              : log.type === 'request'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : log.type === 'response'
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-[#CEA472]/10 text-[#CEA472]/60'
+                          }`}>
+                            {log.type.toUpperCase()}
+                          </span>
+                          <span className="text-[#CEA472] font-medium">
+                            [{log.category}]
+                          </span>
+                          <span className="text-[#FFFFFF]/80">
+                            {log.message}
+                          </span>
+                          <span className="ml-auto text-[#FFFFFF]/40 shrink-0">
+                            {new Date(log.timestamp).toLocaleTimeString('zh-CN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              fractionalSecondDigits: 3,
+                            })}
+                          </span>
+                          {log.elapsed !== undefined && (
+                            <span className="text-[#CEA472]/60 shrink-0">
+                              +{log.elapsed}s
+                            </span>
+                          )}
+                        </div>
+                        {log.details && (
+                          <pre className="mt-2 p-2 bg-black/60 rounded text-[#FFFFFF]/60 overflow-x-auto whitespace-pre-wrap break-all">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
                       </div>
                     ))}
                   </div>

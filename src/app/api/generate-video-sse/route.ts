@@ -18,6 +18,18 @@ function sendEvent(controller: ReadableStreamDefaultController, event: string, d
   controller.enqueue(new TextEncoder().encode(message));
 }
 
+// Log helper with timestamp
+function log(stage: string, message: string, data?: Record<string, unknown>) {
+  const timestamp = new Date().toISOString();
+  const elapsed = globalThis.__generationStartTime ? Date.now() - globalThis.__generationStartTime : 0;
+  console.log(`[${timestamp}] [+${elapsed}ms] [${stage}] ${message}`, data ? JSON.stringify(data) : '');
+}
+
+// Global start time for elapsed calculation
+declare global {
+  var __generationStartTime: number | undefined;
+}
+
 // Mock video generation for testing
 async function mockVideoGeneration(
   controller: ReadableStreamDefaultController,
@@ -70,11 +82,28 @@ async function mockVideoGeneration(
 }
 
 export async function POST(request: NextRequest) {
+  // Initialize global start time
+  globalThis.__generationStartTime = Date.now();
+  
+  log('REQUEST', '收到视频生成请求');
+  
   const body: GenerateVideoRequest = await request.json();
   const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio, mockMode } = body;
 
+  log('REQUEST_BODY', '请求参数', {
+    duration,
+    resolution,
+    ratio,
+    generateAudio,
+    mockMode,
+    firstFrameUrlLength: firstFrameUrl?.length,
+    lastFrameUrlLength: lastFrameUrl?.length,
+    promptLength: prompt?.length,
+  });
+
   // Validate required fields
   if (!firstFrameUrl || !lastFrameUrl) {
+    log('VALIDATION_ERROR', '缺少必需参数');
     return new Response(JSON.stringify({ error: '首帧和尾帧图片URL是必需的' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -86,6 +115,8 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       const startTime = Date.now();
       
+      log('STREAM_START', '开始SSE流');
+      
       // Step 1: Initialize
       sendEvent(controller, 'status', {
         step: 'init',
@@ -96,13 +127,16 @@ export async function POST(request: NextRequest) {
 
       // If mock mode, use mock generation
       if (mockMode) {
+        log('MOCK_MODE', '使用模拟模式');
         await mockVideoGeneration(controller, startTime, duration || 5, resolution || '720p', ratio || '16:9');
         return;
       }
 
       try {
         // Extract headers for forwarding
+        log('HEADERS', '提取转发headers');
         const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+        log('HEADERS_EXTRACTED', 'Headers提取完成', { headerCount: Object.keys(customHeaders).length });
 
         // Step 2: Prepare content
         sendEvent(controller, 'status', {
@@ -113,6 +147,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Prepare content with first and last frame images
+        log('CONTENT_PREPARE', '准备内容对象');
         const content: Content[] = [
           {
             type: 'image_url',
@@ -133,6 +168,7 @@ export async function POST(request: NextRequest) {
             text: prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。确保视频的第一帧与首帧图片完全相同，最后一帧与尾帧图片完全相同，中间过程自然流畅地过渡变化。',
           },
         ];
+        log('CONTENT_READY', '内容对象准备完成');
 
         // Step 3: Submit task
         sendEvent(controller, 'status', {
@@ -143,8 +179,10 @@ export async function POST(request: NextRequest) {
         });
 
         // Initialize video generation client
+        log('CLIENT_INIT', '初始化视频生成客户端');
         const config = new Config();
         const client = new VideoGenerationClient(config, customHeaders as Record<string, string>);
+        log('CLIENT_READY', '客户端初始化完成');
 
         // Step 4: Processing - simulate progress updates
         sendEvent(controller, 'status', {
@@ -180,6 +218,15 @@ export async function POST(request: NextRequest) {
         }, 3000);
 
         // Generate video
+        log('API_CALL_START', '开始调用视频生成API', {
+          model: 'doubao-seedance-1-5-pro-251215',
+          duration,
+          resolution,
+          ratio,
+          generateAudio,
+        });
+        
+        const apiCallStartTime = Date.now();
         let response;
         try {
           response = await client.videoGeneration(content, {
@@ -190,14 +237,27 @@ export async function POST(request: NextRequest) {
             generateAudio: generateAudio ?? true,
             maxWaitTime: 900,
           });
+          log('API_CALL_SUCCESS', 'API调用成功', {
+            apiCallDuration: `${Math.round((Date.now() - apiCallStartTime) / 1000)}秒`,
+            hasVideoUrl: !!response.videoUrl,
+            taskId: response.response?.id,
+            status: response.response?.status,
+          });
         } finally {
           clearInterval(progressInterval);
+          log('PROGRESS_INTERVAL_CLEARED', '清理进度轮询');
         }
 
         // Step 5: Check result
         const totalTime = Math.floor((Date.now() - startTime) / 1000);
+        log('RESULT_CHECK', '检查结果', { totalTime });
         
         if (!response.videoUrl) {
+          log('RESULT_ERROR', '视频URL为空', {
+            taskId: response.response?.id,
+            status: response.response?.status,
+            errorMessage: response.response?.error_message,
+          });
           sendEvent(controller, 'error', {
             step: 'error',
             message: response.response?.error_message || '视频生成失败 - 未返回视频URL',
@@ -210,6 +270,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Step 6: Success
+        log('FINALIZING', '视频生成成功，准备返回');
         sendEvent(controller, 'status', {
           step: 'finalizing',
           message: '视频生成完成，准备播放...',
@@ -231,9 +292,14 @@ export async function POST(request: NextRequest) {
           ratio: response.response.ratio,
         });
 
+        log('STREAM_COMPLETE', 'SSE流完成', { totalTime });
         controller.close();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : '视频生成过程中发生错误';
+        log('ERROR', '发生错误', {
+          errorMessage,
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
         
         // Parse error details for better user feedback
         let userMessage = errorMessage;
