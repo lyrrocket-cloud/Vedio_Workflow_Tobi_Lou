@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -35,6 +35,23 @@ interface LogEntry {
   };
 }
 
+interface HistoryItem {
+  id: string;
+  videoUrl: string;
+  firstFrameUrl: string;
+  lastFrameUrl: string;
+  prompt: string;
+  duration: number;
+  resolution: string;
+  ratio: string;
+  generateAudio: boolean;
+  createdAt: string;
+  totalTime: number;
+}
+
+const HISTORY_STORAGE_KEY = 'video-generation-history';
+const MAX_HISTORY_ITEMS = 20;
+
 export default function TransitionVideoGenerator() {
   const [firstFrame, setFirstFrame] = useState<File | null>(null);
   const [lastFrame, setLastFrame] = useState<File | null>(null);
@@ -52,15 +69,73 @@ export default function TransitionVideoGenerator() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [currentProgress, setCurrentProgress] = useState<number>(0);
   const [totalTime, setTotalTime] = useState<number>(0);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
   
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
+  // Load history from localStorage
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        setHistory(JSON.parse(savedHistory));
+      }
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+  }, []);
+
   // Auto-scroll logs
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+
+  const saveToHistory = useCallback((item: Omit<HistoryItem, 'id' | 'createdAt'>) => {
+    const newItem: HistoryItem = {
+      ...item,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      createdAt: new Date().toISOString(),
+    };
+    
+    setHistory(prev => {
+      const updated = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  const deleteHistoryItem = useCallback((id: string) => {
+    setHistory(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to update history:', e);
+      }
+      return updated;
+    });
+    if (previewHistoryItem?.id === id) {
+      setPreviewHistoryItem(null);
+    }
+  }, [previewHistoryItem]);
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    setPreviewHistoryItem(null);
+    try {
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+    } catch (e) {
+      console.error('Failed to clear history:', e);
+    }
+  }, []);
 
   const handleImageUpload = useCallback((
     file: File,
@@ -208,8 +283,10 @@ export default function TransitionVideoGenerator() {
                   details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
                 });
               } else if (eventType === 'complete') {
-                setVideoUrl(data.videoUrl as string);
-                setTotalTime(data.totalTime as number);
+                const newVideoUrl = data.videoUrl as string;
+                const newTotalTime = data.totalTime as number;
+                setVideoUrl(newVideoUrl);
+                setTotalTime(newTotalTime);
                 addLog({
                   step: data.step as string,
                   message: data.message as string,
@@ -221,8 +298,20 @@ export default function TransitionVideoGenerator() {
                     duration: data.duration as number,
                     resolution: data.resolution as string,
                     ratio: data.ratio as string,
-                    totalTime: data.totalTime as number,
+                    totalTime: newTotalTime,
                   },
+                });
+                // Save to history
+                saveToHistory({
+                  videoUrl: newVideoUrl,
+                  firstFrameUrl: firstFramePreview,
+                  lastFrameUrl: lastFramePreview,
+                  prompt,
+                  duration: duration,
+                  resolution: resolution,
+                  ratio: ratio,
+                  generateAudio: generateAudio,
+                  totalTime: newTotalTime,
                 });
               } else if (eventType === 'error') {
                 setError(data.message as string);
@@ -644,6 +733,195 @@ export default function TransitionVideoGenerator() {
             </Card>
           </div>
         </div>
+
+        {/* History Section */}
+        {history.length > 0 && (
+          <div className="mt-8">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                    <History className="w-5 h-5 text-[#CEA472]" />
+                    历史记录
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setShowHistory(!showHistory)}
+                      variant="outline"
+                      size="sm"
+                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                    >
+                      {showHistory ? '收起' : '展开'} ({history.length})
+                    </Button>
+                    {showHistory && (
+                      <Button
+                        onClick={clearHistory}
+                        variant="outline"
+                        size="sm"
+                        className="bg-black/60 hover:bg-red-500/10 border border-red-500/40 text-red-400 hover:text-red-300 hover:border-red-500 transition-all duration-300"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        清空
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              {showHistory && (
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {history.map((item) => (
+                      <div
+                        key={item.id}
+                        className="group relative bg-black/60 rounded-xl border border-[#CEA472]/20 overflow-hidden hover:border-[#CEA472]/50 transition-all duration-300"
+                      >
+                        {/* Thumbnail */}
+                        <div className="aspect-video relative bg-black">
+                          <video
+                            src={item.videoUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                            playsInline
+                            onMouseEnter={(e) => e.currentTarget.play()}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.pause();
+                              e.currentTarget.currentTime = 0;
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2">
+                            <Button
+                              onClick={() => setPreviewHistoryItem(item)}
+                              size="sm"
+                              className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              查看
+                            </Button>
+                            <Button
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(item.videoUrl);
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `视频_${new Date(item.createdAt).getTime()}.mp4`;
+                                  link.click();
+                                  window.URL.revokeObjectURL(url);
+                                } catch (err) {
+                                  console.error('Download failed:', err);
+                                }
+                              }}
+                              size="sm"
+                              className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472]"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              下载
+                            </Button>
+                          </div>
+                        </div>
+                        {/* Info */}
+                        <div className="p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[#CEA472] text-sm font-medium">
+                              {item.duration}秒 | {item.resolution}
+                            </span>
+                            <Button
+                              onClick={() => deleteHistoryItem(item.id)}
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-[#FFFFFF]/40 hover:text-red-400 hover:bg-transparent"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                          <p className="text-[#FFFFFF]/60 text-xs truncate">
+                            {item.prompt}
+                          </p>
+                          <p className="text-[#FFFFFF]/40 text-xs mt-1">
+                            {new Date(item.createdAt).toLocaleString('zh-CN', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {/* Preview Modal */}
+        {previewHistoryItem && (
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setPreviewHistoryItem(null)}
+          >
+            <div 
+              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
+                <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
+                <Button
+                  onClick={() => setPreviewHistoryItem(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-[#FFFFFF]/60 hover:text-[#FFFFFF]"
+                >
+                  关闭
+                </Button>
+              </div>
+              <div className="p-4">
+                <video
+                  src={previewHistoryItem.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full rounded-lg"
+                />
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-[#FFFFFF]/60 text-sm">
+                    <span className="text-[#CEA472]">{previewHistoryItem.duration}秒</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.resolution}</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.ratio}</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.generateAudio ? '有音频' : '无音频'}</span>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(previewHistoryItem.videoUrl);
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `视频_${new Date(previewHistoryItem.createdAt).getTime()}.mp4`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        console.error('Download failed:', err);
+                      }
+                    }}
+                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    下载视频
+                  </Button>
+                </div>
+                <p className="mt-3 text-[#FFFFFF]/50 text-sm">
+                  {previewHistoryItem.prompt}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center mt-12 text-[#FFFFFF]/30 text-sm">
