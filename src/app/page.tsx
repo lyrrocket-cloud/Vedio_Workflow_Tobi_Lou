@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -57,7 +57,7 @@ export default function TransitionVideoGenerator() {
   const [lastFrame, setLastFrame] = useState<File | null>(null);
   const [firstFramePreview, setFirstFramePreview] = useState<string>('');
   const [lastFramePreview, setLastFramePreview] = useState<string>('');
-  const [prompt, setPrompt] = useState<string>('从首帧平滑过渡到尾帧，确保视频最后一帧与尾帧图片完全一致');
+  const [prompt, setPrompt] = useState<string>('视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。确保视频的第一帧与首帧图片完全相同，最后一帧与尾帧图片完全相同，中间过程自然流畅地过渡变化。');
   const [duration, setDuration] = useState<number>(5);
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
@@ -72,10 +72,14 @@ export default function TransitionVideoGenerator() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const [canCancel, setCanCancel] = useState<boolean>(false);
   
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load history from localStorage
   useEffect(() => {
@@ -201,6 +205,17 @@ export default function TransitionVideoGenerator() {
     setLogs([]);
     setCurrentProgress(0);
     setTotalTime(0);
+    setElapsedSeconds(0);
+    setCanCancel(true);
+
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController();
+    
+    // Start elapsed timer
+    const startTime = Date.now();
+    elapsedTimerRef.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
 
     try {
       // Upload both images
@@ -227,8 +242,6 @@ export default function TransitionVideoGenerator() {
       ]);
 
       // Use SSE for video generation
-      const startTime = Date.now();
-      
       const response = await fetch('/api/generate-video-sse', {
         method: 'POST',
         headers: {
@@ -244,6 +257,7 @@ export default function TransitionVideoGenerator() {
           generateAudio,
           mockMode,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -329,17 +343,41 @@ export default function TransitionVideoGenerator() {
         }
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '发生错误';
-      setError(errorMessage);
-      addLog({
-        step: 'error',
-        message: errorMessage,
-        timestamp: new Date().toISOString(),
-        progress: 0,
-        type: 'error',
-      });
+      // Handle abort error
+      if (err instanceof Error && err.name === 'AbortError') {
+        addLog({
+          step: 'cancelled',
+          message: '用户取消了视频生成',
+          timestamp: new Date().toISOString(),
+          progress: currentProgress,
+          type: 'error',
+        });
+      } else {
+        const errorMessage = err instanceof Error ? err.message : '发生错误';
+        setError(errorMessage);
+        addLog({
+          step: 'error',
+          message: errorMessage,
+          timestamp: new Date().toISOString(),
+          progress: 0,
+          type: 'error',
+        });
+      }
     } finally {
       setIsGenerating(false);
+      setCanCancel(false);
+      // Clear elapsed timer
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
+      }
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -586,23 +624,57 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* Generate Button */}
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !firstFrame || !lastFrame}
-              className="w-full h-14 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-lg rounded-xl transition-all duration-300 disabled:opacity-50"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  正在生成视频...
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5 mr-2" />
-                  生成转场视频
-                </>
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !firstFrame || !lastFrame}
+                  className="flex-1 h-14 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-lg rounded-xl transition-all duration-300 disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      正在生成...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 mr-2" />
+                      生成转场视频
+                    </>
+                  )}
+                </Button>
+                {canCancel && (
+                  <Button
+                    onClick={handleCancel}
+                    variant="outline"
+                    className="h-14 px-4 bg-black/60 hover:bg-red-500/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-red-400 hover:border-red-500/50 transition-all duration-300"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </Button>
+                )}
+              </div>
+              
+              {/* Elapsed Time & Timeout Warning */}
+              {isGenerating && (
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 text-[#FFFFFF]/60">
+                    <Clock className="w-4 h-4" />
+                    <span>已用时: {elapsedSeconds}秒</span>
+                  </div>
+                  {elapsedSeconds > 60 && (
+                    <div className="flex items-center gap-1 text-[#CEA472]">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>生成时间较长，请耐心等待或点击取消重试</span>
+                    </div>
+                  )}
+                  {elapsedSeconds > 120 && (
+                    <div className="text-red-400">
+                      超过2分钟，建议取消后重试
+                    </div>
+                  )}
+                </div>
               )}
-            </Button>
+            </div>
 
             {/* Error Message */}
             {error && (

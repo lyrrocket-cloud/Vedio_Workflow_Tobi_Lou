@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
           },
           {
             type: 'text',
-            text: prompt || '从首帧平滑过渡到尾帧，确保视频最后一帧与尾帧图片完全一致',
+            text: prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。确保视频的第一帧与首帧图片完全相同，最后一帧与尾帧图片完全相同，中间过程自然流畅地过渡变化。',
           },
         ];
 
