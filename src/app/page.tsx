@@ -99,6 +99,7 @@ export default function TransitionVideoGenerator() {
   const [generateAudio, setGenerateAudio] = useState<boolean>(true);
   const [mockMode, setMockMode] = useState<boolean>(false);
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
+  const [removeWatermark, setRemoveWatermark] = useState<boolean>(true); // 默认开启去水印
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -116,11 +117,11 @@ export default function TransitionVideoGenerator() {
   const [technicalLogs, setTechnicalLogs] = useState<TechnicalLog[]>([]);
   const [showTechnicalLogs, setShowTechnicalLogs] = useState<boolean>(false);
   
-  // Monitor dialog state
-  const [showMonitor, setShowMonitor] = useState<boolean>(false);
+  // Monitor state - 常驻底部显示
   const [monitorTasks, setMonitorTasks] = useState<MonitorTask[]>([]);
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, queued: 0, running: 0, succeeded: 0, failed: 0 });
   const [monitorLoading, setMonitorLoading] = useState<boolean>(false);
+  const [monitorCollapsed, setMonitorCollapsed] = useState<boolean>(false); // 折叠状态
   const monitorPollRef = useRef<NodeJS.Timeout | null>(null);
   
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +141,25 @@ export default function TransitionVideoGenerator() {
       console.error('Failed to load history:', e);
     }
   }, []);
+
+  // 初始化任务监控 - 自动开始轮询（仅在异步模式下）
+  useEffect(() => {
+    if (asyncMode) {
+      // 立即获取一次
+      fetchMonitorTasks();
+      // 每10秒刷新一次
+      monitorPollRef.current = setInterval(() => {
+        fetchMonitorTasks();
+      }, 10000);
+    }
+    
+    return () => {
+      if (monitorPollRef.current) {
+        clearInterval(monitorPollRef.current);
+        monitorPollRef.current = null;
+      }
+    };
+  }, [asyncMode]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -281,36 +301,6 @@ export default function TransitionVideoGenerator() {
       setError('取消任务失败');
     }
   }, [fetchMonitorTasks]);
-
-  // 打开监控对话框
-  const openMonitor = useCallback(() => {
-    setShowMonitor(true);
-    setMonitorLoading(true);
-    fetchMonitorTasks().finally(() => setMonitorLoading(false));
-    
-    // 每5秒刷新一次
-    monitorPollRef.current = setInterval(() => {
-      fetchMonitorTasks();
-    }, 5000);
-  }, [fetchMonitorTasks]);
-
-  // 关闭监控对话框
-  const closeMonitor = useCallback(() => {
-    setShowMonitor(false);
-    if (monitorPollRef.current) {
-      clearInterval(monitorPollRef.current);
-      monitorPollRef.current = null;
-    }
-  }, []);
-
-  // 清理
-  useEffect(() => {
-    return () => {
-      if (monitorPollRef.current) {
-        clearInterval(monitorPollRef.current);
-      }
-    };
-  }, []);
 
   const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
@@ -829,18 +819,6 @@ export default function TransitionVideoGenerator() {
             <h1 className="text-4xl font-bold text-[#FFFFFF]">
               首尾帧视频生成器
             </h1>
-            {/* 监控按钮 */}
-            {asyncMode && (
-              <Button
-                onClick={openMonitor}
-                variant="outline"
-                size="sm"
-                className="ml-4 bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#CEA472] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
-              >
-                <Monitor className="w-4 h-4 mr-2" />
-                任务监控
-              </Button>
-            )}
           </div>
         </div>
 
@@ -1039,6 +1017,25 @@ export default function TransitionVideoGenerator() {
                   />
                 </div>
 
+                {/* Remove Watermark Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                  <div>
+                    <Label className="text-blue-400/80 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      去水印
+                    </Label>
+                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
+                      {removeWatermark 
+                        ? '已开启：生成视频不包含水印' 
+                        : '已关闭：生成视频可能包含水印'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={removeWatermark}
+                    onCheckedChange={setRemoveWatermark}
+                  />
+                </div>
+
                 {/* Async Mode Toggle */}
                 <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
                   <div>
@@ -1090,27 +1087,6 @@ export default function TransitionVideoGenerator() {
                   </Button>
                 )}
               </div>
-              
-              {/* Elapsed Time & Timeout Warning */}
-              {isGenerating && (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-[#FFFFFF]/60">
-                    <Clock className="w-4 h-4" />
-                    <span>已用时: {elapsedSeconds}秒</span>
-                  </div>
-                  {elapsedSeconds > 60 && (
-                    <div className="flex items-center gap-1 text-[#CEA472]">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>生成时间较长，请耐心等待或点击取消重试</span>
-                    </div>
-                  )}
-                  {elapsedSeconds > 120 && (
-                    <div className="text-red-400">
-                      超过2分钟，建议取消后重试
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Error Message */}
@@ -1541,196 +1517,193 @@ export default function TransitionVideoGenerator() {
           </div>
         )}
 
-        {/* Monitor Dialog */}
-        {showMonitor && (
-          <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={closeMonitor}
-          >
-            <div 
-              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
-                <div className="flex items-center gap-3">
-                  <Monitor className="w-5 h-5 text-[#CEA472]" />
-                  <h3 className="text-[#FFFFFF] font-medium text-lg">异步任务监控</h3>
-                  {/* 统计信息 */}
-                  <div className="flex items-center gap-2 ml-4 text-sm">
-                    <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
-                      排队: {monitorStats.queued}
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                      运行: {monitorStats.running}
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400">
-                      成功: {monitorStats.succeeded}
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400">
-                      失败: {monitorStats.failed}
-                    </span>
+        {/* Task Monitor - 常驻底部显示 */}
+        {asyncMode && (
+          <div className="mt-8">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                      <Monitor className="w-5 h-5 text-[#CEA472]" />
+                      异步任务监控
+                    </CardTitle>
+                    {/* 统计信息 */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                        排队: {monitorStats.queued}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                        运行: {monitorStats.running}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400">
+                        成功: {monitorStats.succeeded}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-red-500/20 text-red-400">
+                        失败: {monitorStats.failed}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => {
+                        setMonitorLoading(true);
+                        fetchMonitorTasks().finally(() => setMonitorLoading(false));
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="text-[#CEA472] hover:text-[#CEA472] hover:bg-[#CEA472]/10"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${monitorLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                    <Button
+                      onClick={() => setMonitorCollapsed(!monitorCollapsed)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-[#FFFFFF]/60 hover:text-[#FFFFFF]"
+                    >
+                      {monitorCollapsed ? '展开' : '收起'}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => {
-                      setMonitorLoading(true);
-                      fetchMonitorTasks().finally(() => setMonitorLoading(false));
-                    }}
-                    variant="ghost"
-                    size="sm"
-                    className="text-[#CEA472] hover:text-[#CEA472] hover:bg-[#CEA472]/10"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${monitorLoading ? 'animate-spin' : ''}`} />
-                  </Button>
-                  <Button
-                    onClick={closeMonitor}
-                    variant="ghost"
-                    size="sm"
-                    className="text-[#FFFFFF]/60 hover:text-[#FFFFFF]"
-                  >
-                    关闭
-                  </Button>
-                </div>
-              </div>
+              </CardHeader>
               
-              <div className="p-4 overflow-y-auto max-h-[70vh]">
-                {monitorLoading && monitorTasks.length === 0 ? (
-                  <div className="text-center py-12 text-[#FFFFFF]/50">
-                    <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin" />
-                    <p>加载任务列表...</p>
-                  </div>
-                ) : monitorTasks.length === 0 ? (
-                  <div className="text-center py-12 text-[#FFFFFF]/50">
-                    <Monitor className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p className="text-base">暂无异步任务</p>
-                    <p className="text-sm mt-1">开启异步模式后生成的任务会显示在这里</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {monitorTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`p-3 rounded-lg border ${
-                          task.status === 'running' 
-                            ? 'bg-blue-500/5 border-blue-500/20' 
-                            : task.status === 'succeeded'
-                            ? 'bg-green-500/5 border-green-500/20'
-                            : task.status === 'failed'
-                            ? 'bg-red-500/5 border-red-500/20'
-                            : task.status === 'cancelled'
-                            ? 'bg-gray-500/5 border-gray-500/20'
-                            : 'bg-yellow-500/5 border-yellow-500/20'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {/* 状态图标 */}
-                            {task.status === 'running' && <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />}
-                            {task.status === 'queued' && <Clock className="w-5 h-5 text-yellow-400" />}
-                            {task.status === 'succeeded' && <CheckCircle className="w-5 h-5 text-green-400" />}
-                            {task.status === 'failed' && <XCircle className="w-5 h-5 text-red-400" />}
-                            {task.status === 'cancelled' && <StopCircle className="w-5 h-5 text-gray-400" />}
+              {!monitorCollapsed && (
+                <CardContent>
+                  {monitorLoading && monitorTasks.length === 0 ? (
+                    <div className="text-center py-8 text-[#FFFFFF]/50">
+                      <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin" />
+                      <p className="text-sm">加载任务列表...</p>
+                    </div>
+                  ) : monitorTasks.length === 0 ? (
+                    <div className="text-center py-8 text-[#FFFFFF]/50">
+                      <Monitor className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">暂无异步任务</p>
+                      <p className="text-xs mt-1">开启异步模式后生成的任务会显示在这里</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {monitorTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className={`p-3 rounded-lg border ${
+                            task.status === 'running' 
+                              ? 'bg-blue-500/5 border-blue-500/20' 
+                              : task.status === 'succeeded'
+                              ? 'bg-green-500/5 border-green-500/20'
+                              : task.status === 'failed'
+                              ? 'bg-red-500/5 border-red-500/20'
+                              : task.status === 'cancelled'
+                              ? 'bg-gray-500/5 border-gray-500/20'
+                              : 'bg-yellow-500/5 border-yellow-500/20'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {/* 状态图标 */}
+                              {task.status === 'running' && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
+                              {task.status === 'queued' && <Clock className="w-4 h-4 text-yellow-400" />}
+                              {task.status === 'succeeded' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                              {task.status === 'failed' && <XCircle className="w-4 h-4 text-red-400" />}
+                              {task.status === 'cancelled' && <StopCircle className="w-4 h-4 text-gray-400" />}
+                              
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[#FFFFFF]/80 font-mono text-xs">
+                                    {task.id.slice(0, 12)}...
+                                  </span>
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    task.status === 'running' 
+                                      ? 'bg-blue-500/20 text-blue-400' 
+                                      : task.status === 'succeeded'
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : task.status === 'failed'
+                                      ? 'bg-red-500/20 text-red-400'
+                                      : task.status === 'cancelled'
+                                      ? 'bg-gray-500/20 text-gray-400'
+                                      : 'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {task.status === 'queued' ? '排队中' :
+                                     task.status === 'running' ? '运行中' :
+                                     task.status === 'succeeded' ? '已完成' :
+                                     task.status === 'failed' ? '失败' : '已取消'}
+                                  </span>
+                                </div>
+                                <div className="text-[#FFFFFF]/50 text-xs mt-1">
+                                  {task.params.duration}秒 | {task.params.resolution} | {task.params.ratio}
+                                  <span className="mx-2">•</span>
+                                  {task.elapsed}秒前
+                                </div>
+                              </div>
+                            </div>
                             
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[#FFFFFF]/80 font-mono text-sm">
-                                  {task.id.slice(0, 16)}...
-                                </span>
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                  task.status === 'running' 
-                                    ? 'bg-blue-500/20 text-blue-400' 
-                                    : task.status === 'succeeded'
-                                    ? 'bg-green-500/20 text-green-400'
-                                    : task.status === 'failed'
-                                    ? 'bg-red-500/20 text-red-400'
-                                    : task.status === 'cancelled'
-                                    ? 'bg-gray-500/20 text-gray-400'
-                                    : 'bg-yellow-500/20 text-yellow-400'
-                                }`}>
-                                  {task.status === 'queued' ? '排队中' :
-                                   task.status === 'running' ? '运行中' :
-                                   task.status === 'succeeded' ? '已完成' :
-                                   task.status === 'failed' ? '失败' : '已取消'}
-                                </span>
-                              </div>
-                              <div className="text-[#FFFFFF]/50 text-xs mt-1">
-                                {task.params.duration}秒 | {task.params.resolution} | {task.params.ratio}
-                                <span className="mx-2">•</span>
-                                {task.elapsed}秒前创建
-                              </div>
+                            <div className="flex items-center gap-2">
+                              {/* 查看视频按钮 */}
+                              {task.status === 'succeeded' && task.videoUrl && (
+                                <Button
+                                  onClick={() => setVideoUrl(task.videoUrl!)}
+                                  size="sm"
+                                  className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] h-7"
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  查看
+                                </Button>
+                              )}
+                              
+                              {/* 取消按钮 */}
+                              {(task.status === 'queued' || task.status === 'running') && (
+                                <Button
+                                  onClick={() => cancelTask(task.id)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-black/60 hover:bg-red-500/10 border border-red-500/40 text-red-400 hover:text-red-300 h-7"
+                                >
+                                  <StopCircle className="w-3 h-3 mr-1" />
+                                  取消
+                                </Button>
+                              )}
+                              
+                              {/* 下载按钮 */}
+                              {task.status === 'succeeded' && task.videoUrl && (
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(task.videoUrl!);
+                                      const blob = await response.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      const link = document.createElement('a');
+                                      link.href = url;
+                                      link.download = `视频_${task.id.slice(0, 8)}.mp4`;
+                                      link.click();
+                                      window.URL.revokeObjectURL(url);
+                                    } catch (err) {
+                                      console.error('Download failed:', err);
+                                    }
+                                  }}
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#CEA472] h-7"
+                                >
+                                  <Download className="w-3 h-3 mr-1" />
+                                  下载
+                                </Button>
+                              )}
                             </div>
                           </div>
                           
-                          <div className="flex items-center gap-2">
-                            {/* 查看视频按钮 */}
-                            {task.status === 'succeeded' && task.videoUrl && (
-                              <Button
-                                onClick={() => {
-                                  setVideoUrl(task.videoUrl!);
-                                  closeMonitor();
-                                }}
-                                size="sm"
-                                className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                查看
-                              </Button>
-                            )}
-                            
-                            {/* 取消按钮 */}
-                            {(task.status === 'queued' || task.status === 'running') && (
-                              <Button
-                                onClick={() => cancelTask(task.id)}
-                                variant="outline"
-                                size="sm"
-                                className="bg-black/60 hover:bg-red-500/10 border border-red-500/40 text-red-400 hover:text-red-300 hover:border-red-500"
-                              >
-                                <StopCircle className="w-4 h-4 mr-1" />
-                                取消
-                              </Button>
-                            )}
-                            
-                            {/* 下载按钮 */}
-                            {task.status === 'succeeded' && task.videoUrl && (
-                              <Button
-                                onClick={async () => {
-                                  try {
-                                    const response = await fetch(task.videoUrl!);
-                                    const blob = await response.blob();
-                                    const url = window.URL.createObjectURL(blob);
-                                    const link = document.createElement('a');
-                                    link.href = url;
-                                    link.download = `视频_${task.id.slice(0, 8)}.mp4`;
-                                    link.click();
-                                    window.URL.revokeObjectURL(url);
-                                  } catch (err) {
-                                    console.error('Download failed:', err);
-                                  }
-                                }}
-                                variant="outline"
-                                size="sm"
-                                className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#CEA472]"
-                              >
-                                <Download className="w-4 h-4 mr-1" />
-                                下载
-                              </Button>
-                            )}
-                          </div>
+                          {/* 错误信息 */}
+                          {task.status === 'failed' && task.error && (
+                            <div className="mt-2 text-xs text-red-400/80 bg-red-500/5 p-2 rounded">
+                              {task.error}
+                            </div>
+                          )}
                         </div>
-                        
-                        {/* 错误信息 */}
-                        {task.status === 'failed' && task.error && (
-                          <div className="mt-2 text-xs text-red-400/80 bg-red-500/5 p-2 rounded">
-                            {task.error}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
           </div>
         )}
 
