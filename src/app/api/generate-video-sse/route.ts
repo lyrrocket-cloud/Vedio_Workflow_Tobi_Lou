@@ -260,6 +260,7 @@ export async function POST(request: NextRequest) {
             resolution: resolution as '480p' | '720p' | '1080p' || '720p',
             ratio: ratio as '16:9' | '9:16' | '1:1' | '4:3' | '3:4' || '16:9',
             generateAudio: generateAudio ?? true,
+            watermark: false, // 关闭水印
             maxWaitTime: 900,
           });
           log('API_CALL_SUCCESS', 'API调用成功', {
