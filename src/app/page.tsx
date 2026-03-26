@@ -74,6 +74,7 @@ export default function TransitionVideoGenerator() {
   const [ratio, setRatio] = useState<string>('16:9');
   const [generateAudio, setGenerateAudio] = useState<boolean>(true);
   const [mockMode, setMockMode] = useState<boolean>(false);
+  const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -85,6 +86,7 @@ export default function TransitionVideoGenerator() {
   const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [canCancel, setCanCancel] = useState<boolean>(false);
+  const [currentTaskId, setCurrentTaskId] = useState<string>('');
   
   // Technical logs for debugging
   const [technicalLogs, setTechnicalLogs] = useState<TechnicalLog[]>([]);
@@ -235,6 +237,151 @@ export default function TransitionVideoGenerator() {
     return data.url;
   };
 
+  // 异步模式生成视频
+  const handleGenerateAsync = async (firstFrameUrl: string, lastFrameUrl: string) => {
+    addTechnicalLog('request', '异步提交', '提交视频生成任务', {
+      endpoint: '/api/generate-video-async',
+      asyncMode: true,
+    });
+    
+    const submitStartTime = Date.now();
+    
+    // 提交任务
+    const submitResponse = await fetch('/api/generate-video-async', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firstFrameUrl,
+        lastFrameUrl,
+        prompt,
+        duration,
+        resolution,
+        ratio,
+        generateAudio,
+        mockMode,
+      }),
+    });
+    
+    const submitData = await submitResponse.json();
+    
+    if (!submitData.success || !submitData.taskId) {
+      throw new Error(submitData.error || '任务提交失败');
+    }
+    
+    const taskId = submitData.taskId;
+    setCurrentTaskId(taskId);
+    
+    addTechnicalLog('response', '异步提交', '任务已提交', {
+      taskId,
+      status: submitData.status,
+      耗时: `${Date.now() - submitStartTime}ms`,
+    });
+    
+    addLog({
+      step: 'submitted',
+      message: `✅ 任务已提交 (ID: ${taskId.slice(0, 12)}...)`,
+      timestamp: new Date().toISOString(),
+      progress: 10,
+      type: 'status',
+      note: '使用异步模式，可关闭页面后继续处理',
+    });
+    
+    // 连接SSE监听状态
+    addTechnicalLog('request', 'SSE监听', '开始监听任务状态', { taskId });
+    
+    const sseResponse = await fetch(`/api/video-status-sse/${taskId}`, {
+      signal: abortControllerRef.current?.signal,
+    });
+    
+    if (!sseResponse.ok) {
+      throw new Error('无法连接状态监听');
+    }
+    
+    const reader = sseResponse.body?.getReader();
+    if (!reader) {
+      throw new Error('无法获取状态流');
+    }
+    
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+      
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
+          if (eventMatch) {
+            const eventType = eventMatch[1];
+            const data = JSON.parse(eventMatch[2]);
+            
+            addTechnicalLog('event', 'SSE事件', eventType, data);
+            
+            if (eventType === 'status') {
+              const progressMap: Record<string, number> = {
+                'queued': 15,
+                'running': 50,
+              };
+              addLog({
+                step: data.status,
+                message: data.message,
+                timestamp: new Date().toISOString(),
+                progress: progressMap[data.status] || currentProgress,
+                type: 'status',
+                details: { elapsed: data.elapsed },
+              });
+            } else if (eventType === 'complete') {
+              const newVideoUrl = data.videoUrl;
+              setVideoUrl(newVideoUrl);
+              setTotalTime(data.elapsed);
+              addLog({
+                step: 'complete',
+                message: data.message,
+                timestamp: new Date().toISOString(),
+                progress: 100,
+                type: 'complete',
+                details: { taskId, totalTime: data.elapsed },
+              });
+              addTechnicalLog('info', '完成', '视频生成成功', {
+                videoUrl: newVideoUrl,
+                totalTime: data.elapsed,
+              });
+              saveToHistory({
+                videoUrl: newVideoUrl,
+                firstFrameUrl: firstFramePreview,
+                lastFrameUrl: lastFramePreview,
+                prompt,
+                duration,
+                resolution,
+                ratio,
+                generateAudio,
+                totalTime: data.elapsed,
+              });
+            } else if (eventType === 'error') {
+              setError(data.error || data.message);
+              addLog({
+                step: 'error',
+                message: data.message,
+                timestamp: new Date().toISOString(),
+                progress: 0,
+                type: 'error',
+                details: { error: data.error },
+              });
+            } else if (eventType === 'heartbeat') {
+              // 心跳事件，更新进度显示
+              setCurrentProgress(Math.min(85, 20 + Math.floor(data.elapsed / 10)));
+            }
+          }
+        }
+      }
+    }
+  };
+
   const handleGenerate = async () => {
     if (!firstFrame || !lastFrame) {
       setError('请上传首帧和尾帧图片');
@@ -312,177 +459,27 @@ export default function TransitionVideoGenerator() {
         总耗时: `${Math.round((Date.now() - uploadStartTime) / 1000)}秒`,
       });
 
-      // Use SSE for video generation
-      addTechnicalLog('request', '视频生成', '发起SSE视频生成请求', {
-        endpoint: '/api/generate-video-sse',
-        body: {
-          duration,
-          resolution,
-          ratio,
-          generateAudio,
-          mockMode,
-          firstFrameUrl: firstFrameUrl.substring(0, 100) + '...',
-          lastFrameUrl: lastFrameUrl.substring(0, 100) + '...',
-        },
-      });
-      
-      const sseStartTime = Date.now();
-      const response = await fetch('/api/generate-video-sse', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          firstFrameUrl,
-          lastFrameUrl,
-          prompt,
-          duration,
-          resolution,
-          ratio,
-          generateAudio,
-          mockMode,
-        }),
-        signal: abortControllerRef.current.signal,
-      });
-      
-      addTechnicalLog('response', '视频生成', 'SSE连接建立', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        连接耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        addTechnicalLog('error', '视频生成', 'SSE请求失败', {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText.substring(0, 500),
+      // 根据模式选择生成方式
+      if (asyncMode) {
+        // 异步模式：提交任务后立即返回，通过SSE监听状态
+        addLog({
+          step: 'mode',
+          message: '🚀 使用异步模式 - 任务提交后可关闭页面',
+          timestamp: new Date().toISOString(),
+          progress: 9,
+          type: 'status',
         });
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('无法获取响应流');
-      }
-      
-      addTechnicalLog('info', '视频生成', '开始读取SSE流');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let eventCount = 0;
-
-      while (true) {
-        const readStartTime = Date.now();
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          addTechnicalLog('info', '视频生成', 'SSE流读取完成', {
-            总事件数: eventCount,
-            总耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
-          });
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventCount++;
-            const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
-            if (eventMatch) {
-              const eventType = eventMatch[1];
-              const rawData = eventMatch[2];
-              let data;
-              try {
-                data = JSON.parse(rawData);
-              } catch (e) {
-                addTechnicalLog('error', 'SSE解析', 'JSON解析失败', {
-                  rawData: rawData.substring(0, 200),
-                });
-                continue;
-              }
-
-              addTechnicalLog('event', 'SSE事件', `${eventType}`, {
-                事件序号: eventCount,
-                时间戳: data.timestamp,
-                进度: data.progress,
-                步骤: data.step,
-                消息: data.message,
-                原始数据: data,
-                读取耗时: `${Date.now() - readStartTime}ms`,
-              });
-
-              if (eventType === 'status') {
-                addLog({
-                  step: data.step as string,
-                  message: data.message as string,
-                  timestamp: data.timestamp as string,
-                  progress: data.progress as number,
-                  type: 'status',
-                  note: data.note as string | undefined,
-                  details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
-                });
-              } else if (eventType === 'complete') {
-                const newVideoUrl = data.videoUrl as string;
-                const newTotalTime = data.totalTime as number;
-                setVideoUrl(newVideoUrl);
-                setTotalTime(newTotalTime);
-                addLog({
-                  step: data.step as string,
-                  message: data.message as string,
-                  timestamp: data.timestamp as string,
-                  progress: 100,
-                  type: 'complete',
-                  details: {
-                    taskId: data.taskId as string,
-                    duration: data.duration as number,
-                    resolution: data.resolution as string,
-                    ratio: data.ratio as string,
-                    totalTime: newTotalTime,
-                  },
-                });
-                
-                addTechnicalLog('info', '完成', '视频生成成功', {
-                  视频URL: newVideoUrl.substring(0, 100) + '...',
-                  总耗时: `${newTotalTime}秒`,
-                  taskId: data.taskId,
-                });
-                
-                // Save to history
-                saveToHistory({
-                  videoUrl: newVideoUrl,
-                  firstFrameUrl: firstFramePreview,
-                  lastFrameUrl: lastFramePreview,
-                  prompt,
-                  duration: duration,
-                  resolution: resolution,
-                  ratio: ratio,
-                  generateAudio: generateAudio,
-                  totalTime: newTotalTime,
-                });
-              } else if (eventType === 'error') {
-                setError(data.message as string);
-                addLog({
-                  step: data.step as string,
-                  message: data.message as string,
-                  timestamp: data.timestamp as string,
-                  progress: (data.progress as number) || 0,
-                  type: 'error',
-                  details: { error: data.error as string },
-                });
-                
-                addTechnicalLog('error', '错误', data.message, {
-                  错误详情: data.error,
-                  完整数据: data,
-                });
-              }
-            }
-          }
-        }
+        await handleGenerateAsync(firstFrameUrl, lastFrameUrl);
+      } else {
+        // 同步模式：使用SSE阻塞等待
+        addLog({
+          step: 'mode',
+          message: '⏳ 使用同步模式 - 等待生成完成',
+          timestamp: new Date().toISOString(),
+          progress: 9,
+          type: 'status',
+        });
+        await handleGenerateSync(firstFrameUrl, lastFrameUrl);
       }
     } catch (err) {
       // Handle abort error
@@ -518,6 +515,178 @@ export default function TransitionVideoGenerator() {
         elapsedTimerRef.current = null;
       }
       abortControllerRef.current = null;
+    }
+  };
+
+  // 同步模式生成视频
+  const handleGenerateSync = async (firstFrameUrl: string, lastFrameUrl: string) => {
+    addTechnicalLog('request', '视频生成', '发起SSE视频生成请求', {
+      endpoint: '/api/generate-video-sse',
+      body: {
+        duration,
+        resolution,
+        ratio,
+        generateAudio,
+        mockMode,
+        firstFrameUrl: firstFrameUrl.substring(0, 100) + '...',
+        lastFrameUrl: lastFrameUrl.substring(0, 100) + '...',
+      },
+    });
+    
+    const sseStartTime = Date.now();
+    const response = await fetch('/api/generate-video-sse', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        firstFrameUrl,
+        lastFrameUrl,
+        prompt,
+        duration,
+        resolution,
+        ratio,
+        generateAudio,
+        mockMode,
+      }),
+      signal: abortControllerRef.current?.signal,
+    });
+    
+    addTechnicalLog('response', '视频生成', 'SSE连接建立', {
+      status: response.status,
+      statusText: response.statusText,
+      连接耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      addTechnicalLog('error', '视频生成', 'SSE请求失败', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText.substring(0, 500),
+      });
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('无法获取响应流');
+    }
+    
+    addTechnicalLog('info', '视频生成', '开始读取SSE流');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let eventCount = 0;
+
+    while (true) {
+      const readStartTime = Date.now();
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        addTechnicalLog('info', '视频生成', 'SSE流读取完成', {
+          总事件数: eventCount,
+          总耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
+        });
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventCount++;
+          const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
+          if (eventMatch) {
+            const eventType = eventMatch[1];
+            const rawData = eventMatch[2];
+            let data;
+            try {
+              data = JSON.parse(rawData);
+            } catch (e) {
+              addTechnicalLog('error', 'SSE解析', 'JSON解析失败', {
+                rawData: rawData.substring(0, 200),
+              });
+              continue;
+            }
+
+            addTechnicalLog('event', 'SSE事件', `${eventType}`, {
+              事件序号: eventCount,
+              时间戳: data.timestamp,
+              进度: data.progress,
+              步骤: data.step,
+              消息: data.message,
+              读取耗时: `${Date.now() - readStartTime}ms`,
+            });
+
+            if (eventType === 'status') {
+              addLog({
+                step: data.step as string,
+                message: data.message as string,
+                timestamp: data.timestamp as string,
+                progress: data.progress as number,
+                type: 'status',
+                note: data.note as string | undefined,
+                details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
+              });
+            } else if (eventType === 'complete') {
+              const newVideoUrl = data.videoUrl as string;
+              const newTotalTime = data.totalTime as number;
+              setVideoUrl(newVideoUrl);
+              setTotalTime(newTotalTime);
+              addLog({
+                step: data.step as string,
+                message: data.message as string,
+                timestamp: data.timestamp as string,
+                progress: 100,
+                type: 'complete',
+                details: {
+                  taskId: data.taskId as string,
+                  duration: data.duration as number,
+                  resolution: data.resolution as string,
+                  ratio: data.ratio as string,
+                  totalTime: newTotalTime,
+                },
+              });
+              
+              addTechnicalLog('info', '完成', '视频生成成功', {
+                视频URL: newVideoUrl.substring(0, 100) + '...',
+                总耗时: `${newTotalTime}秒`,
+                taskId: data.taskId,
+              });
+              
+              saveToHistory({
+                videoUrl: newVideoUrl,
+                firstFrameUrl: firstFramePreview,
+                lastFrameUrl: lastFramePreview,
+                prompt,
+                duration: duration,
+                resolution: resolution,
+                ratio: ratio,
+                generateAudio: generateAudio,
+                totalTime: newTotalTime,
+              });
+            } else if (eventType === 'error') {
+              setError(data.message as string);
+              addLog({
+                step: data.step as string,
+                message: data.message as string,
+                timestamp: data.timestamp as string,
+                progress: (data.progress as number) || 0,
+                type: 'error',
+                details: { error: data.error as string },
+              });
+              
+              addTechnicalLog('error', '错误', data.message, {
+                错误详情: data.error,
+                完整数据: data,
+              });
+            }
+          }
+        }
+      }
     }
   };
 
@@ -764,6 +933,25 @@ export default function TransitionVideoGenerator() {
                   <Switch
                     checked={mockMode}
                     onCheckedChange={setMockMode}
+                  />
+                </div>
+
+                {/* Async Mode Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+                  <div>
+                    <Label className="text-green-400/80 flex items-center gap-2">
+                      <Zap className="w-4 h-4" />
+                      异步模式
+                    </Label>
+                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
+                      {asyncMode 
+                        ? '任务提交后可关闭页面，后台继续处理' 
+                        : '同步等待生成完成，实时显示进度'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={asyncMode}
+                    onCheckedChange={setAsyncMode}
                   />
                 </div>
               </CardContent>
