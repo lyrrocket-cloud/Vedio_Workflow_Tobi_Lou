@@ -1247,9 +1247,10 @@ export default function TransitionVideoGenerator() {
           </div>
         </div>
 
-        {/* History Section */}
-        {history.length > 0 && (
-          <div className="mt-8">
+        {/* 对话框区域 - 垂直排列 */}
+        <div className="mt-8 space-y-8">
+          {/* History Section */}
+          {history.length > 0 && (
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -1371,13 +1372,11 @@ export default function TransitionVideoGenerator() {
                 </CardContent>
               )}
             </Card>
-          </div>
-        )}
+          )}
 
         {/* Technical Logs Section - Debug Panel */}
         {technicalLogs.length > 0 && (
-          <div className="mt-8">
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+          <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-[#FFFFFF] flex items-center gap-2 text-base">
@@ -1475,84 +1474,10 @@ export default function TransitionVideoGenerator() {
                 </CardContent>
               )}
             </Card>
-          </div>
-        )}
+          )}
 
-        {/* Preview Modal */}
-        {previewHistoryItem && (
-          <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setPreviewHistoryItem(null)}
-          >
-            <div 
-              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
-                <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
-                <Button
-                  onClick={() => setPreviewHistoryItem(null)}
-                  variant="outline"
-                  size="icon"
-                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                  title="关闭"
-                >
-                  <XCircle className="w-4 h-4 text-[#CEA472]" />
-                </Button>
-              </div>
-              <div className="p-4">
-                <video
-                  src={previewHistoryItem.videoUrl}
-                  controls
-                  autoPlay
-                  className="w-full rounded-lg"
-                />
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-[#FFFFFF]/60 text-sm">
-                    <span className="text-[#CEA472]">{previewHistoryItem.duration}秒</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.resolution}</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.ratio}</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.generateAudio ? '有音频' : '无音频'}</span>
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/download-video?url=${encodeURIComponent(previewHistoryItem.videoUrl)}`);
-                        if (!response.ok) {
-                          const errorData = await response.json();
-                          throw new Error(errorData.error || '下载失败');
-                        }
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `视频_${new Date(previewHistoryItem.createdAt).getTime()}.mp4`;
-                        link.click();
-                        window.URL.revokeObjectURL(url);
-                      } catch (err) {
-                        console.error('Download failed:', err);
-                      }
-                    }}
-                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    下载视频
-                  </Button>
-                </div>
-                <p className="mt-3 text-[#FFFFFF]/50 text-sm">
-                  {previewHistoryItem.prompt}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Task Monitor - 常驻底部显示 */}
-        {asyncMode && (
-          <div className="mt-8">
+          {/* Task Monitor - 常驻底部显示 */}
+          {asyncMode && (
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -1742,6 +1667,78 @@ export default function TransitionVideoGenerator() {
                 </CardContent>
               )}
             </Card>
+          )}
+        </div>
+
+        {/* Preview Modal */}
+        {previewHistoryItem && (
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setPreviewHistoryItem(null)}
+          >
+            <div 
+              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
+                <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
+                <Button
+                  onClick={() => setPreviewHistoryItem(null)}
+                  variant="outline"
+                  size="icon"
+                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                  title="关闭"
+                >
+                  <XCircle className="w-4 h-4 text-[#CEA472]" />
+                </Button>
+              </div>
+              <div className="p-4">
+                <video
+                  src={previewHistoryItem.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full rounded-lg"
+                />
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-[#FFFFFF]/60 text-sm">
+                    <span className="text-[#CEA472]">{previewHistoryItem.duration}秒</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.resolution}</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.ratio}</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewHistoryItem.generateAudio ? '有音频' : '无音频'}</span>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/download-video?url=${encodeURIComponent(previewHistoryItem.videoUrl)}`);
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.error || '下载失败');
+                        }
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `视频_${new Date(previewHistoryItem.createdAt).getTime()}.mp4`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        console.error('Download failed:', err);
+                      }
+                    }}
+                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    下载视频
+                  </Button>
+                </div>
+                <p className="mt-3 text-[#FFFFFF]/50 text-sm">
+                  {previewHistoryItem.prompt}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
