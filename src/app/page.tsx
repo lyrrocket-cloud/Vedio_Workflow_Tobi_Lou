@@ -845,20 +845,18 @@ export default function TransitionVideoGenerator() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Upload & Settings */}
-          <div className="space-y-6">
-            {/* Image Upload Section */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader>
-                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-[#CEA472]" />
-                  帧图片上传
-                </CardTitle>
-                <CardDescription className="text-[#FFFFFF]/60">
-                  上传起始帧和结束帧图片
-                </CardDescription>
-              </CardHeader>
+        <div className="space-y-6">
+          {/* Image Upload Section */}
+          <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <CardHeader>
+              <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-[#CEA472]" />
+                帧图片上传
+              </CardTitle>
+              <CardDescription className="text-[#FFFFFF]/60">
+                上传起始帧和结束帧图片
+              </CardDescription>
+            </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   {/* First Frame */}
@@ -1118,24 +1116,21 @@ export default function TransitionVideoGenerator() {
                 {error}
               </div>
             )}
-          </div>
 
-          {/* Right Column - Status Logs & Video Preview */}
-          <div className="space-y-6">
-            {/* Status Logs */}
-            {(logs.length > 0 || isGenerating) && (
-              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-[#FFFFFF] text-base flex items-center gap-2">
-                      <Zap className={`w-4 h-4 text-[#CEA472] ${isGenerating ? 'animate-pulse' : ''}`} />
-                      运行状态
-                    </CardTitle>
-                    {totalTime > 0 && (
-                      <span className="text-[#CEA472] text-sm font-medium">
-                        总耗时: {totalTime}秒
-                      </span>
-                    )}
+          {/* Status Logs */}
+          {(logs.length > 0 || isGenerating) && (
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-[#FFFFFF] text-base flex items-center gap-2">
+                    <Zap className={`w-4 h-4 text-[#CEA472] ${isGenerating ? 'animate-pulse' : ''}`} />
+                    运行状态
+                  </CardTitle>
+                  {totalTime > 0 && (
+                    <span className="text-[#CEA472] text-sm font-medium">
+                      总耗时: {totalTime}秒
+                    </span>
+                  )}
                   </div>
                   {/* Progress Bar */}
                   <div className="mt-3">
@@ -1244,7 +1239,6 @@ export default function TransitionVideoGenerator() {
                 )}
               </CardContent>
             </Card>
-          </div>
         </div>
 
         {/* 对话框区域 - 垂直排列 */}
