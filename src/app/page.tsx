@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -136,31 +136,6 @@ export default function TransitionVideoGenerator() {
       }
       return updated;
     });
-  }, []);
-
-  const deleteHistoryItem = useCallback((id: string) => {
-    setHistory(prev => {
-      const updated = prev.filter(item => item.id !== id);
-      try {
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to update history:', e);
-      }
-      return updated;
-    });
-    if (previewHistoryItem?.id === id) {
-      setPreviewHistoryItem(null);
-    }
-  }, [previewHistoryItem]);
-
-  const clearHistory = useCallback(() => {
-    setHistory([]);
-    setPreviewHistoryItem(null);
-    try {
-      localStorage.removeItem(HISTORY_STORAGE_KEY);
-    } catch (e) {
-      console.error('Failed to clear history:', e);
-    }
   }, []);
 
   const handleImageUpload = useCallback((
@@ -836,17 +811,6 @@ export default function TransitionVideoGenerator() {
                     >
                       {showHistory ? <ChevronUp className="w-4 h-4 text-[#CEA472]" /> : <ChevronDown className="w-4 h-4 text-[#CEA472]" />}
                     </Button>
-                    {showHistory && (
-                      <Button
-                        onClick={clearHistory}
-                        variant="outline"
-                        size="icon"
-                        className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50"
-                        title="清空"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -910,20 +874,10 @@ export default function TransitionVideoGenerator() {
                         </div>
                         {/* Info */}
                         <div className="p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[#CEA472] text-sm font-medium">
-                              {item.duration}秒 | {item.resolution}
-                            </span>
-                            <Button
-                              onClick={() => deleteHistoryItem(item.id)}
-                              size="sm"
-                              variant="outline"
-                              className="h-6 w-6 p-0 border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                          <p className="text-[#FFFFFF]/60 text-xs truncate">
+                          <span className="text-[#CEA472] text-sm font-medium">
+                            {item.duration}秒 | {item.resolution}
+                          </span>
+                          <p className="text-[#FFFFFF]/60 text-xs truncate mt-2">
                             {item.prompt}
                           </p>
                           <p className="text-[#FFFFFF]/40 text-xs mt-1">
