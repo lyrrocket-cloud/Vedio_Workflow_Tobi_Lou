@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -819,15 +819,19 @@ export default function TransitionVideoGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="min-h-screen bg-[#0a0a0f] bg-cover bg-center bg-fixed bg-no-repeat relative" style={{ backgroundImage: 'url(https://code.coze.cn/api/sandbox/coze_coding/file/proxy?expire_time=-1&file_path=assets%2F20260226-113651.jpg&nonce=a15fb89a-7b6f-42f5-96a2-cabae4250535&project_id=7621104939930222628&sign=c5833d8e5d38ee15db957f67079aaae1ebebd3d2a5afee749e7fa9a00398639c)' }}>
+      {/* 背景遮罩层 */}
+      <div className="absolute inset-0 bg-[#0a0a0f]/80" />
+      
+      <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="flex items-center justify-center gap-3">
-            <Sparkles className="w-8 h-8 text-[#CEA472]" />
+            <Video className="w-10 h-10 text-[#CEA472]" />
             <h1 className="text-4xl font-bold text-[#FFFFFF]">
               首尾帧视频生成器
             </h1>
+            <Sparkles className="w-8 h-8 text-[#CEA472]" />
           </div>
         </div>
 
