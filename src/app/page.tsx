@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -16,22 +16,11 @@ interface UploadResponse {
   error?: string;
 }
 
-interface HistoryItem {
-  id: string;
-  videoUrl: string;
-  firstFrameUrl: string;
-  lastFrameUrl: string;
-  prompt: string;
-  duration: number;
-  resolution: string;
-  ratio: string;
-  generateAudio: boolean;
-  createdAt: string;
-  totalTime: number;
+interface UploadResponse {
+  success: boolean;
+  url?: string;
+  error?: string;
 }
-
-const HISTORY_STORAGE_KEY = 'video-generation-history';
-const MAX_HISTORY_ITEMS = 20;
 
 // 监控任务类型
 interface MonitorTask {
@@ -73,11 +62,9 @@ export default function TransitionVideoGenerator() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState<boolean>(false);
-  const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
+  const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(false);
 
   // Monitor state - 常驻底部显示
   const [monitorTasks, setMonitorTasks] = useState<MonitorTask[]>([]);
@@ -89,18 +76,6 @@ export default function TransitionVideoGenerator() {
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Load history from localStorage
-  useEffect(() => {
-    try {
-      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (savedHistory) {
-        setHistory(JSON.parse(savedHistory));
-      }
-    } catch (e) {
-      console.error('Failed to load history:', e);
-    }
-  }, []);
 
   // 初始化任务监控 - 自动开始轮询（仅在异步模式下）
   useEffect(() => {
@@ -120,36 +95,6 @@ export default function TransitionVideoGenerator() {
       }
     };
   }, [asyncMode]);
-
-  const saveToHistory = useCallback((item: Omit<HistoryItem, 'id' | 'createdAt'>) => {
-    const newItem: HistoryItem = {
-      ...item,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      createdAt: new Date().toISOString(),
-    };
-
-    setHistory(prev => {
-      const updated = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
-      try {
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to save history:', e);
-      }
-      return updated;
-    });
-  }, []);
-
-  const deleteHistoryItem = useCallback((itemId: string) => {
-    setHistory(prev => {
-      const updated = prev.filter(item => item.id !== itemId);
-      try {
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to delete history item:', e);
-      }
-      return updated;
-    });
-  }, []);
 
   const handleImageUpload = useCallback((
     file: File,
@@ -301,17 +246,6 @@ export default function TransitionVideoGenerator() {
             if (eventType === 'complete') {
               const newVideoUrl = data.videoUrl;
               setVideoUrl(newVideoUrl);
-              saveToHistory({
-                videoUrl: newVideoUrl,
-                firstFrameUrl: firstFramePreview,
-                lastFrameUrl: lastFramePreview,
-                prompt,
-                duration,
-                resolution,
-                ratio,
-                generateAudio,
-                totalTime: data.elapsed,
-              });
             } else if (eventType === 'error') {
               setError(data.error || data.message);
             }
@@ -425,18 +359,6 @@ export default function TransitionVideoGenerator() {
               const newVideoUrl = data.videoUrl as string;
               const newTotalTime = data.totalTime as number;
               setVideoUrl(newVideoUrl);
-
-              saveToHistory({
-                videoUrl: newVideoUrl,
-                firstFrameUrl: firstFramePreview,
-                lastFrameUrl: lastFramePreview,
-                prompt,
-                duration: duration,
-                resolution: resolution,
-                ratio: ratio,
-                generateAudio: generateAudio,
-                totalTime: newTotalTime,
-              });
             } else if (eventType === 'error') {
               setError(data.message as string);
             }
@@ -607,9 +529,21 @@ export default function TransitionVideoGenerator() {
 
             {/* Settings Section */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader>
-                <CardTitle className="text-[#FFFFFF]">生成设置</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-[#FFFFFF]">生成设置</CardTitle>
+                  <Button
+                    onClick={() => setSettingsCollapsed(!settingsCollapsed)}
+                    variant="outline"
+                    size="icon"
+                    className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                    title={settingsCollapsed ? '展开' : '收起'}
+                  >
+                    {settingsCollapsed ? <ChevronDown className="w-4 h-4 text-[#CEA472]" /> : <ChevronUp className="w-4 h-4 text-[#CEA472]" />}
+                  </Button>
+                </div>
               </CardHeader>
+              {!settingsCollapsed && (
               <CardContent className="space-y-6">
                 {/* Prompt */}
                 <div className="space-y-2">
@@ -736,6 +670,7 @@ export default function TransitionVideoGenerator() {
                   />
                 </div>
               </CardContent>
+              )}
             </Card>
 
             {/* Generate Button */}
@@ -982,195 +917,6 @@ export default function TransitionVideoGenerator() {
             )}
 
         </div>
-
-        {/* 对话框区域 - 垂直排列 */}
-        <div className="mt-8 space-y-8">
-          {/* History Section */}
-          {history.length > 0 && (
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                    <History className="w-5 h-5 text-[#CEA472]" />
-                    历史记录
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => setShowHistory(!showHistory)}
-                      variant="outline"
-                      size="icon"
-                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                      title={showHistory ? '收起' : '展开'}
-                    >
-                      {showHistory ? <ChevronUp className="w-4 h-4 text-[#CEA472]" /> : <ChevronDown className="w-4 h-4 text-[#CEA472]" />}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              {showHistory && (
-                <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        className="group relative bg-black/60 rounded-xl border border-[#CEA472]/20 overflow-hidden hover:border-[#CEA472]/50 transition-all duration-300"
-                      >
-                        {/* Thumbnail */}
-                        <div className="aspect-video relative bg-black">
-                          <video
-                            src={item.videoUrl}
-                            className="w-full h-full object-cover"
-                            muted
-                            playsInline
-                            onMouseEnter={(e) => e.currentTarget.play()}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.pause();
-                              e.currentTarget.currentTime = 0;
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2">
-                            <Button
-                              onClick={() => setPreviewHistoryItem(item)}
-                              size="icon"
-                              className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
-                              title="查看"
-                            >
-                              <Eye className="w-4 h-4 text-[#CEA472]" />
-                            </Button>
-                            <Button
-                              onClick={async () => {
-                                try {
-                                  const response = await fetch(`/api/download-video?url=${encodeURIComponent(item.videoUrl)}`);
-                                  if (!response.ok) {
-                                    const errorData = await response.json();
-                                    throw new Error(errorData.error || '下载失败');
-                                  }
-                                  const blob = await response.blob();
-                                  const url = window.URL.createObjectURL(blob);
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = `视频_${new Date(item.createdAt).getTime()}.mp4`;
-                                  link.click();
-                                  window.URL.revokeObjectURL(url);
-                                } catch (err) {
-                                  console.error('Download failed:', err);
-                                }
-                              }}
-                              size="icon"
-                              variant="outline"
-                              className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
-                              title="下载"
-                            >
-                              <Download className="w-4 h-4 text-[#CEA472]" />
-                            </Button>
-                            <Button
-                              onClick={() => deleteHistoryItem(item.id)}
-                              size="icon"
-                              variant="outline"
-                              className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
-                              title="删除"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </div>
-                        {/* Info */}
-                        <div className="p-3">
-                          <span className="text-[#CEA472] text-sm font-medium">
-                            {item.duration}秒 | {item.resolution}
-                          </span>
-                          <p className="text-[#FFFFFF]/60 text-xs truncate mt-2">
-                            {item.prompt}
-                          </p>
-                          <p className="text-[#FFFFFF]/40 text-xs mt-1">
-                            {new Date(item.createdAt).toLocaleString('zh-CN', {
-                              month: '2-digit',
-                              day: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
-        </div>
-
-        {/* Preview Modal */}
-        {previewHistoryItem && (
-          <div 
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setPreviewHistoryItem(null)}
-          >
-            <div 
-              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
-                <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
-                <Button
-                  onClick={() => setPreviewHistoryItem(null)}
-                  variant="outline"
-                  size="icon"
-                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                  title="关闭"
-                >
-                  <XCircle className="w-4 h-4 text-[#CEA472]" />
-                </Button>
-              </div>
-              <div className="p-4">
-                <video
-                  src={previewHistoryItem.videoUrl}
-                  controls
-                  autoPlay
-                  className="w-full rounded-lg"
-                />
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-[#FFFFFF]/60 text-sm">
-                    <span className="text-[#CEA472]">{previewHistoryItem.duration}秒</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.resolution}</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.ratio}</span>
-                    <span className="mx-2">|</span>
-                    <span>{previewHistoryItem.generateAudio ? '有音频' : '无音频'}</span>
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const response = await fetch(`/api/download-video?url=${encodeURIComponent(previewHistoryItem.videoUrl)}`);
-                        if (!response.ok) {
-                          const errorData = await response.json();
-                          throw new Error(errorData.error || '下载失败');
-                        }
-                        const blob = await response.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `视频_${new Date(previewHistoryItem.createdAt).getTime()}.mp4`;
-                        link.click();
-                        window.URL.revokeObjectURL(url);
-                      } catch (err) {
-                        console.error('Download failed:', err);
-                      }
-                    }}
-                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    下载视频
-                  </Button>
-                </div>
-                <p className="mt-3 text-[#FFFFFF]/50 text-sm">
-                  {previewHistoryItem.prompt}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Monitor Video Preview Modal */}
         {previewMonitorVideo && (
