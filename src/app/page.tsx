@@ -1208,11 +1208,11 @@ export default function TransitionVideoGenerator() {
                     <Button
                       onClick={handleDownload}
                       variant="outline"
-                      size="sm"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      size="icon"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300 h-8 w-8"
+                      title="下载视频"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      下载视频
+                      <Download className="w-4 h-4" />
                     </Button>
                   )}
                 </CardTitle>
@@ -1599,11 +1599,12 @@ export default function TransitionVideoGenerator() {
                               {task.status === 'succeeded' && task.videoUrl && (
                                 <Button
                                   onClick={() => setVideoUrl(task.videoUrl!)}
-                                  size="sm"
-                                  className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] h-7"
+                                  variant="outline"
+                                  size="icon"
+                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-8 w-8"
+                                  title="查看"
                                 >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  查看
+                                  <Eye className="w-4 h-4" />
                                 </Button>
                               )}
                               
@@ -1612,11 +1613,11 @@ export default function TransitionVideoGenerator() {
                                 <Button
                                   onClick={() => cancelTask(task.id)}
                                   variant="outline"
-                                  size="sm"
-                                  className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 h-7"
+                                  size="icon"
+                                  className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 h-8 w-8"
+                                  title="取消"
                                 >
-                                  <StopCircle className="w-3 h-3 mr-1" />
-                                  取消
+                                  <StopCircle className="w-4 h-4" />
                                 </Button>
                               )}
                               
@@ -1642,11 +1643,11 @@ export default function TransitionVideoGenerator() {
                                     }
                                   }}
                                   variant="outline"
-                                  size="sm"
-                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-7"
+                                  size="icon"
+                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-8 w-8"
+                                  title="下载"
                                 >
-                                  <Download className="w-3 h-3 mr-1" />
-                                  下载
+                                  <Download className="w-4 h-4" />
                                 </Button>
                               )}
                             </div>
