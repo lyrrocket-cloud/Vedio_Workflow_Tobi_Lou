@@ -8,32 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
   url?: string;
   error?: string;
-}
-
-interface LogEntry {
-  id: string;
-  step: string;
-  message: string;
-  timestamp: string;
-  progress: number;
-  type: 'status' | 'complete' | 'error';
-  note?: string;
-  details?: {
-    elapsed?: number;
-    taskId?: string;
-    duration?: number;
-    resolution?: string;
-    ratio?: string;
-    totalTime?: number;
-    error?: string;
-  };
 }
 
 interface HistoryItem {
@@ -77,16 +57,6 @@ interface MonitorStats {
   failed: number;
 }
 
-interface TechnicalLog {
-  id: string;
-  timestamp: string;
-  type: 'request' | 'response' | 'event' | 'error' | 'info';
-  category: string;
-  message: string;
-  details?: Record<string, unknown>;
-  elapsed?: number;
-}
-
 export default function TransitionVideoGenerator() {
   const [firstFrame, setFirstFrame] = useState<File | null>(null);
   const [lastFrame, setLastFrame] = useState<File | null>(null);
@@ -103,32 +73,21 @@ export default function TransitionVideoGenerator() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [currentProgress, setCurrentProgress] = useState<number>(0);
-  const [totalTime, setTotalTime] = useState<number>(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [canCancel, setCanCancel] = useState<boolean>(false);
-  const [currentTaskId, setCurrentTaskId] = useState<string>('');
-  
-  // Technical logs for debugging
-  const [technicalLogs, setTechnicalLogs] = useState<TechnicalLog[]>([]);
-  const [showTechnicalLogs, setShowTechnicalLogs] = useState<boolean>(false);
-  
+
   // Monitor state - 常驻底部显示
   const [monitorTasks, setMonitorTasks] = useState<MonitorTask[]>([]);
   const [monitorStats, setMonitorStats] = useState<MonitorStats>({ total: 0, queued: 0, running: 0, succeeded: 0, failed: 0 });
   const [monitorLoading, setMonitorLoading] = useState<boolean>(false);
   const [monitorCollapsed, setMonitorCollapsed] = useState<boolean>(false); // 折叠状态
   const monitorPollRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load history from localStorage
   useEffect(() => {
@@ -160,11 +119,6 @@ export default function TransitionVideoGenerator() {
       }
     };
   }, [asyncMode]);
-
-  // Auto-scroll logs
-  useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
 
   const saveToHistory = useCallback((item: Omit<HistoryItem, 'id' | 'createdAt'>) => {
     const newItem: HistoryItem = {
@@ -236,42 +190,6 @@ export default function TransitionVideoGenerator() {
     }
   }, [handleImageUpload]);
 
-  const addLog = (entry: Omit<LogEntry, 'id'>) => {
-    const newEntry: LogEntry = {
-      ...entry,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-    };
-    setLogs(prev => [...prev, newEntry]);
-    setCurrentProgress(entry.progress);
-  };
-
-  // Technical log for debugging
-  const generationStartTimeRef = useRef<number>(0);
-  
-  const addTechnicalLog = (
-    type: TechnicalLog['type'],
-    category: string,
-    message: string,
-    details?: Record<string, unknown>
-  ) => {
-    const elapsed = generationStartTimeRef.current > 0 
-      ? Math.round((Date.now() - generationStartTimeRef.current) / 1000)
-      : undefined;
-    
-    const newLog: TechnicalLog = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-      timestamp: new Date().toISOString(),
-      type,
-      category,
-      message,
-      details,
-      elapsed,
-    };
-    
-    setTechnicalLogs(prev => [...prev, newLog]);
-    console.log(`[${category}] ${message}`, details || '');
-  };
-
   // 获取任务列表
   const fetchMonitorTasks = useCallback(async () => {
     try {
@@ -320,13 +238,6 @@ export default function TransitionVideoGenerator() {
 
   // 异步模式生成视频
   const handleGenerateAsync = async (firstFrameUrl: string, lastFrameUrl: string) => {
-    addTechnicalLog('request', '异步提交', '提交视频生成任务', {
-      endpoint: '/api/generate-video-async',
-      asyncMode: true,
-    });
-    
-    const submitStartTime = Date.now();
-    
     // 提交任务
     const submitResponse = await fetch('/api/generate-video-async', {
       method: 'POST',
@@ -342,96 +253,50 @@ export default function TransitionVideoGenerator() {
         mockMode,
       }),
     });
-    
+
     const submitData = await submitResponse.json();
-    
+
     if (!submitData.success || !submitData.taskId) {
       throw new Error(submitData.error || '任务提交失败');
     }
-    
+
     const taskId = submitData.taskId;
-    setCurrentTaskId(taskId);
-    
-    addTechnicalLog('response', '异步提交', '任务已提交', {
-      taskId,
-      status: submitData.status,
-      耗时: `${Date.now() - submitStartTime}ms`,
-    });
-    
-    addLog({
-      step: 'submitted',
-      message: `✅ 任务已提交 (ID: ${taskId.slice(0, 12)}...)`,
-      timestamp: new Date().toISOString(),
-      progress: 10,
-      type: 'status',
-      note: '使用异步模式，可关闭页面后继续处理',
-    });
-    
+
     // 连接SSE监听状态
-    addTechnicalLog('request', 'SSE监听', '开始监听任务状态', { taskId });
-    
     const sseResponse = await fetch(`/api/video-status-sse/${taskId}`, {
       signal: abortControllerRef.current?.signal,
     });
-    
+
     if (!sseResponse.ok) {
       throw new Error('无法连接状态监听');
     }
-    
+
     const reader = sseResponse.body?.getReader();
     if (!reader) {
       throw new Error('无法获取状态流');
     }
-    
+
     const decoder = new TextDecoder();
     let buffer = '';
-    
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      
+
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n\n');
       buffer = lines.pop() || '';
-      
+
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
           if (eventMatch) {
             const eventType = eventMatch[1];
             const data = JSON.parse(eventMatch[2]);
-            
-            addTechnicalLog('event', 'SSE事件', eventType, data);
-            
-            if (eventType === 'status') {
-              const progressMap: Record<string, number> = {
-                'queued': 15,
-                'running': 50,
-              };
-              addLog({
-                step: data.status,
-                message: data.message,
-                timestamp: new Date().toISOString(),
-                progress: progressMap[data.status] || currentProgress,
-                type: 'status',
-                details: { elapsed: data.elapsed },
-              });
-            } else if (eventType === 'complete') {
+
+            if (eventType === 'complete') {
               const newVideoUrl = data.videoUrl;
               setVideoUrl(newVideoUrl);
-              setTotalTime(data.elapsed);
-              addLog({
-                step: 'complete',
-                message: data.message,
-                timestamp: new Date().toISOString(),
-                progress: 100,
-                type: 'complete',
-                details: { taskId, totalTime: data.elapsed },
-              });
-              addTechnicalLog('info', '完成', '视频生成成功', {
-                videoUrl: newVideoUrl,
-                totalTime: data.elapsed,
-              });
               saveToHistory({
                 videoUrl: newVideoUrl,
                 firstFrameUrl: firstFramePreview,
@@ -445,17 +310,6 @@ export default function TransitionVideoGenerator() {
               });
             } else if (eventType === 'error') {
               setError(data.error || data.message);
-              addLog({
-                step: 'error',
-                message: data.message,
-                timestamp: new Date().toISOString(),
-                progress: 0,
-                type: 'error',
-                details: { error: data.error },
-              });
-            } else if (eventType === 'heartbeat') {
-              // 心跳事件，更新进度显示
-              setCurrentProgress(Math.min(85, 20 + Math.floor(data.elapsed / 10)));
             }
           }
         }
@@ -469,152 +323,46 @@ export default function TransitionVideoGenerator() {
       return;
     }
 
-    // Reset technical logs
-    generationStartTimeRef.current = Date.now();
-    setTechnicalLogs([]);
-    
-    addTechnicalLog('info', '初始化', '开始生成视频', {
-      文件信息: {
-        首帧: { name: firstFrame.name, size: `${(firstFrame.size / 1024).toFixed(2)}KB`, type: firstFrame.type },
-        尾帧: { name: lastFrame.name, size: `${(lastFrame.size / 1024).toFixed(2)}KB`, type: lastFrame.type },
-      },
-      参数设置: { duration, resolution, ratio, generateAudio, mockMode },
-      prompt: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : ''),
-    });
-
     setIsGenerating(true);
     setError('');
     setVideoUrl('');
-    setLogs([]);
-    setCurrentProgress(0);
-    setTotalTime(0);
-    setElapsedSeconds(0);
     setCanCancel(true);
 
     // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
-    
-    // Start elapsed timer
-    const startTime = Date.now();
-    elapsedTimerRef.current = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
 
     try {
       // Upload both images
-      addLog({
-        step: 'upload',
-        message: '正在上传首帧图片...',
-        timestamp: new Date().toISOString(),
-        progress: 2,
-        type: 'status',
-      });
-      
-      addTechnicalLog('request', '上传', '开始上传图片到对象存储');
-
-      const uploadStartTime = Date.now();
       const [firstFrameUrl, lastFrameUrl] = await Promise.all([
-        uploadImage(firstFrame).then(url => {
-          addTechnicalLog('response', '上传', '首帧图片上传完成', {
-            url: url.substring(0, 100) + '...',
-            耗时: `${Math.round((Date.now() - uploadStartTime) / 1000)}秒`,
-          });
-          return url;
-        }),
-        uploadImage(lastFrame).then(url => {
-          addTechnicalLog('response', '上传', '尾帧图片上传完成', {
-            url: url.substring(0, 100) + '...',
-          });
-          addLog({
-            step: 'upload',
-            message: '图片上传完成',
-            timestamp: new Date().toISOString(),
-            progress: 8,
-            type: 'status',
-          });
-          return url;
-        }),
+        uploadImage(firstFrame),
+        uploadImage(lastFrame),
       ]);
-      
-      addTechnicalLog('info', '上传', '所有图片上传完成', {
-        总耗时: `${Math.round((Date.now() - uploadStartTime) / 1000)}秒`,
-      });
 
       // 根据模式选择生成方式
       if (asyncMode) {
         // 异步模式：提交任务后立即返回，通过SSE监听状态
-        addLog({
-          step: 'mode',
-          message: '🚀 使用异步模式 - 任务提交后可关闭页面',
-          timestamp: new Date().toISOString(),
-          progress: 9,
-          type: 'status',
-        });
         await handleGenerateAsync(firstFrameUrl, lastFrameUrl);
       } else {
         // 同步模式：使用SSE阻塞等待
-        addLog({
-          step: 'mode',
-          message: '⏳ 使用同步模式 - 等待生成完成',
-          timestamp: new Date().toISOString(),
-          progress: 9,
-          type: 'status',
-        });
         await handleGenerateSync(firstFrameUrl, lastFrameUrl);
       }
     } catch (err) {
       // Handle abort error
       if (err instanceof Error && err.name === 'AbortError') {
-        addTechnicalLog('info', '取消', '用户取消视频生成');
-        addLog({
-          step: 'cancelled',
-          message: '用户取消了视频生成',
-          timestamp: new Date().toISOString(),
-          progress: currentProgress,
-          type: 'error',
-        });
+        setError('用户取消了视频生成');
       } else {
         const errorMessage = err instanceof Error ? err.message : '发生错误';
-        addTechnicalLog('error', '异常', errorMessage, {
-          错误堆栈: err instanceof Error ? err.stack : undefined,
-        });
         setError(errorMessage);
-        addLog({
-          step: 'error',
-          message: errorMessage,
-          timestamp: new Date().toISOString(),
-          progress: 0,
-          type: 'error',
-        });
       }
     } finally {
       setIsGenerating(false);
       setCanCancel(false);
-      // Clear elapsed timer
-      if (elapsedTimerRef.current) {
-        clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = null;
-      }
       abortControllerRef.current = null;
     }
   };
 
   // 同步模式生成视频
   const handleGenerateSync = async (firstFrameUrl: string, lastFrameUrl: string) => {
-    addTechnicalLog('request', '视频生成', '发起SSE视频生成请求', {
-      endpoint: '/api/generate-video-sse',
-      body: {
-        duration,
-        resolution,
-        ratio,
-        generateAudio,
-        mockMode,
-        firstFrameUrl: firstFrameUrl.substring(0, 100) + '...',
-        lastFrameUrl: lastFrameUrl.substring(0, 100) + '...',
-      },
-    });
-    
-    const sseStartTime = Date.now();
     const response = await fetch('/api/generate-video-sse', {
       method: 'POST',
       headers: {
@@ -632,20 +380,8 @@ export default function TransitionVideoGenerator() {
       }),
       signal: abortControllerRef.current?.signal,
     });
-    
-    addTechnicalLog('response', '视频生成', 'SSE连接建立', {
-      status: response.status,
-      statusText: response.statusText,
-      连接耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
-    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      addTechnicalLog('error', '视频生成', 'SSE请求失败', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText.substring(0, 500),
-      });
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
@@ -653,22 +389,14 @@ export default function TransitionVideoGenerator() {
     if (!reader) {
       throw new Error('无法获取响应流');
     }
-    
-    addTechnicalLog('info', '视频生成', '开始读取SSE流');
 
     const decoder = new TextDecoder();
     let buffer = '';
-    let eventCount = 0;
 
     while (true) {
-      const readStartTime = Date.now();
       const { done, value } = await reader.read();
-      
+
       if (done) {
-        addTechnicalLog('info', '视频生成', 'SSE流读取完成', {
-          总事件数: eventCount,
-          总耗时: `${Math.round((Date.now() - sseStartTime) / 1000)}秒`,
-        });
         break;
       }
 
@@ -678,7 +406,6 @@ export default function TransitionVideoGenerator() {
 
       for (const line of lines) {
         if (line.startsWith('event: ')) {
-          eventCount++;
           const eventMatch = line.match(/^event: (\w+)\ndata: ([\s\S]+)$/);
           if (eventMatch) {
             const eventType = eventMatch[1];
@@ -687,57 +414,14 @@ export default function TransitionVideoGenerator() {
             try {
               data = JSON.parse(rawData);
             } catch (e) {
-              addTechnicalLog('error', 'SSE解析', 'JSON解析失败', {
-                rawData: rawData.substring(0, 200),
-              });
               continue;
             }
 
-            addTechnicalLog('event', 'SSE事件', `${eventType}`, {
-              事件序号: eventCount,
-              时间戳: data.timestamp,
-              进度: data.progress,
-              步骤: data.step,
-              消息: data.message,
-              读取耗时: `${Date.now() - readStartTime}ms`,
-            });
-
-            if (eventType === 'status') {
-              addLog({
-                step: data.step as string,
-                message: data.message as string,
-                timestamp: data.timestamp as string,
-                progress: data.progress as number,
-                type: 'status',
-                note: data.note as string | undefined,
-                details: data.elapsed ? { elapsed: data.elapsed as number } : undefined,
-              });
-            } else if (eventType === 'complete') {
+            if (eventType === 'complete') {
               const newVideoUrl = data.videoUrl as string;
               const newTotalTime = data.totalTime as number;
               setVideoUrl(newVideoUrl);
-              setTotalTime(newTotalTime);
-              addLog({
-                step: data.step as string,
-                message: data.message as string,
-                timestamp: data.timestamp as string,
-                progress: 100,
-                type: 'complete',
-                details: {
-                  taskId: data.taskId as string,
-                  duration: data.duration as number,
-                  resolution: data.resolution as string,
-                  ratio: data.ratio as string,
-                  totalTime: newTotalTime,
-                },
-              });
-              
-              addTechnicalLog('info', '完成', '视频生成成功', {
-                视频URL: newVideoUrl.substring(0, 100) + '...',
-                总耗时: `${newTotalTime}秒`,
-                taskId: data.taskId,
-              });
-              
+
               saveToHistory({
                 videoUrl: newVideoUrl,
                 firstFrameUrl: firstFramePreview,
@@ -751,19 +435,6 @@ export default function TransitionVideoGenerator() {
               });
             } else if (eventType === 'error') {
               setError(data.message as string);
-              addLog({
-                step: data.step as string,
-                message: data.message as string,
-                timestamp: data.timestamp as string,
-                progress: (data.progress as number) || 0,
-                type: 'error',
-                details: { error: data.error as string },
-              });
-              
-              addTechnicalLog('error', '错误', data.message, {
-                错误详情: data.error,
-                完整数据: data,
-              });
             }
           }
         }
@@ -801,21 +472,6 @@ export default function TransitionVideoGenerator() {
       setError(errorMessage);
       console.error('下载失败:', err);
     }
-  };
-
-  const getStepIcon = (type: string, step: string) => {
-    if (type === 'complete') return <CheckCircle className="w-4 h-4 text-[#CEA472]" />;
-    if (type === 'error') return <AlertCircle className="w-4 h-4 text-red-400" />;
-    if (step === 'processing') return <Zap className="w-4 h-4 text-[#CEA472] animate-pulse" />;
-    return <Clock className="w-4 h-4 text-[#CEA472]/60" />;
-  };
-
-  const formatTime = (isoString: string) => {
-    return new Date(isoString).toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
   };
 
   return (
@@ -1117,88 +773,6 @@ export default function TransitionVideoGenerator() {
               </div>
             )}
 
-          {/* Status Logs */}
-          {(logs.length > 0 || isGenerating) && (
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-[#FFFFFF] text-base flex items-center gap-2">
-                    <Zap className={`w-4 h-4 text-[#CEA472] ${isGenerating ? 'animate-pulse' : ''}`} />
-                    运行状态
-                  </CardTitle>
-                  {totalTime > 0 && (
-                    <span className="text-[#CEA472] text-sm font-medium">
-                      总耗时: {totalTime}秒
-                    </span>
-                  )}
-                  </div>
-                  {/* Progress Bar */}
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[#FFFFFF]/60 text-xs">进度</span>
-                      <span className="text-[#CEA472] text-xs font-medium">{currentProgress}%</span>
-                    </div>
-                    <Progress 
-                      value={currentProgress} 
-                      className="h-2 bg-black/60 [&>div]:bg-[#CEA472]"
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Log Entries */}
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-[#CEA472]/20 scrollbar-track-transparent">
-                    {logs.map((log) => (
-                      <div
-                        key={log.id}
-                        className={`flex items-start gap-2 p-2 rounded-lg ${
-                          log.type === 'error' 
-                            ? 'bg-red-500/10 border border-red-500/20' 
-                            : log.type === 'complete'
-                            ? 'bg-[#CEA472]/10 border border-[#CEA472]/20'
-                            : 'bg-black/40'
-                        }`}
-                      >
-                        {getStepIcon(log.type, log.step)}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`text-sm ${
-                              log.type === 'error' 
-                                ? 'text-red-400' 
-                                : log.type === 'complete'
-                                ? 'text-[#CEA472]'
-                                : 'text-[#FFFFFF]/80'
-                            }`}>
-                              {log.message}
-                            </span>
-                            <span className="text-[#FFFFFF]/40 text-xs shrink-0">
-                              {formatTime(log.timestamp)}
-                            </span>
-                          </div>
-                          {log.note && (
-                            <div className="mt-1.5 p-1.5 bg-[#CEA472]/5 rounded text-xs text-[#CEA472]/80">
-                              {log.note}
-                            </div>
-                          )}
-                          {log.details && (
-                            <div className="mt-1 text-xs text-[#FFFFFF]/40">
-                              {log.details.elapsed && <span>已用时: {log.details.elapsed}秒</span>}
-                              {log.details.taskId && (
-                                <span className="block">任务ID: {String(log.details.taskId).slice(0, 20)}...</span>
-                              )}
-                              {log.details.duration && (
-                                <span className="block">视频时长: {log.details.duration}秒 | 分辨率: {log.details.resolution} | 比例: {log.details.ratio}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={logsEndRef} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Video Preview */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
@@ -1361,110 +935,6 @@ export default function TransitionVideoGenerator() {
                             })}
                           </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          )}
-
-        {/* Technical Logs Section - Debug Panel */}
-        {technicalLogs.length > 0 && (
-          <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2 text-base">
-                    <Info className="w-5 h-5 text-[#CEA472]" />
-                    技术日志
-                    <span className="text-xs text-[#CEA472]/60 font-normal ml-2">
-                      (调试面板 - 排查性能问题)
-                    </span>
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => {
-                        const logText = technicalLogs.map(log =>
-                          `[${log.timestamp}] [${log.elapsed ?? 0}s] [${log.type.toUpperCase()}] [${log.category}] ${log.message}\n${log.details ? JSON.stringify(log.details, null, 2) : ''}`
-                        ).join('\n\n');
-                        navigator.clipboard.writeText(logText);
-                      }}
-                      variant="outline"
-                      size="icon"
-                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                      title="复制日志"
-                    >
-                      <Copy className="w-4 h-4 text-[#CEA472]" />
-                    </Button>
-                    <Button
-                      onClick={() => setShowTechnicalLogs(!showTechnicalLogs)}
-                      variant="outline"
-                      size="icon"
-                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                      title={showTechnicalLogs ? '收起' : '展开'}
-                    >
-                      {showTechnicalLogs ? <ChevronUp className="w-4 h-4 text-[#CEA472]" /> : <ChevronDown className="w-4 h-4 text-[#CEA472]" />}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              {showTechnicalLogs && (
-                <CardContent>
-                  <div className="max-h-[500px] overflow-y-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-[#CEA472]/20 scrollbar-track-transparent font-mono text-xs">
-                    {technicalLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className={`p-3 rounded-lg border ${
-                          log.type === 'error' 
-                            ? 'bg-red-500/5 border-red-500/20' 
-                            : log.type === 'event'
-                            ? 'bg-[#CEA472]/5 border-[#CEA472]/10'
-                            : log.type === 'request'
-                            ? 'bg-blue-500/5 border-blue-500/20'
-                            : log.type === 'response'
-                            ? 'bg-green-500/5 border-green-500/20'
-                            : 'bg-black/40 border-[#CEA472]/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                            log.type === 'error' 
-                              ? 'bg-red-500/20 text-red-400' 
-                              : log.type === 'event'
-                              ? 'bg-[#CEA472]/20 text-[#CEA472]'
-                              : log.type === 'request'
-                              ? 'bg-blue-500/20 text-blue-400'
-                              : log.type === 'response'
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-[#CEA472]/10 text-[#CEA472]/60'
-                          }`}>
-                            {log.type.toUpperCase()}
-                          </span>
-                          <span className="text-[#CEA472] font-medium">
-                            [{log.category}]
-                          </span>
-                          <span className="text-[#FFFFFF]/80">
-                            {log.message}
-                          </span>
-                          <span className="ml-auto text-[#FFFFFF]/40 shrink-0">
-                            {new Date(log.timestamp).toLocaleTimeString('zh-CN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                              fractionalSecondDigits: 3,
-                            })}
-                          </span>
-                          {log.elapsed !== undefined && (
-                            <span className="text-[#CEA472]/60 shrink-0">
-                              +{log.elapsed}s
-                            </span>
-                          )}
-                        </div>
-                        {log.details && (
-                          <pre className="mt-2 p-2 bg-black/60 rounded text-[#FFFFFF]/60 overflow-x-auto whitespace-pre-wrap break-all">
-                            {JSON.stringify(log.details, null, 2)}
-                          </pre>
-                        )}
                       </div>
                     ))}
                   </div>
