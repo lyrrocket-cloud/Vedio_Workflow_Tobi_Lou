@@ -826,13 +826,35 @@ export default function TransitionVideoGenerator() {
       <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3">
-            <Video className="w-10 h-10 text-[#CEA472]" />
-            <h1 className="text-4xl font-bold text-[#FFFFFF]">
+          <div className="flex flex-col items-center justify-center gap-4 mb-4">
+            {/* 图标容器 - 金色衬底 + 黑色线框 */}
+            <div
+              className="w-20 h-20 flex items-center justify-center rounded-2xl"
+              style={{
+                backgroundColor: '#CEA472',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2)'
+              }}
+            >
+              <Video className="w-10 h-10" style={{ color: '#0a0a0f' }} />
+            </div>
+
+            {/* 主标题 */}
+            <h1 className="text-5xl font-bold text-white drop-shadow-lg">
               首尾帧视频生成器
             </h1>
-            <Sparkles className="w-8 h-8 text-[#CEA472]" />
+
+            {/* 装饰图标 */}
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#CEA472]" />
+              <Sparkles className="w-5 h-5 text-[#CEA472]" />
+              <Sparkles className="w-5 h-5 text-[#CEA472]" />
+            </div>
           </div>
+
+          {/* 副标题 */}
+          <p className="text-white/80 font-normal text-lg">
+            上传首尾帧，AI智能生成流畅转场视频
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
