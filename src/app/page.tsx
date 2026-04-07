@@ -64,7 +64,7 @@ export default function TransitionVideoGenerator() {
   const [error, setError] = useState<string>('');
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
-  const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(false);
+  const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(true);
 
   // Monitor state - 常驻底部显示
   const [monitorTasks, setMonitorTasks] = useState<MonitorTask[]>([]);
