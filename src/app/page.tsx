@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -531,7 +531,10 @@ export default function TransitionVideoGenerator() {
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-[#FFFFFF]">生成设置</CardTitle>
+                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-[#CEA472]" />
+                    生成设置
+                  </CardTitle>
                   <Button
                     onClick={() => setSettingsCollapsed(!settingsCollapsed)}
                     variant="outline"
@@ -974,10 +977,12 @@ export default function TransitionVideoGenerator() {
                         console.error('Download failed:', err);
                       }
                     }}
-                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                    variant="outline"
+                    size="icon"
+                    className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                    title="下载"
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    下载视频
+                    <Download className="w-4 h-4 text-[#CEA472]" />
                   </Button>
                 </div>
               </div>
