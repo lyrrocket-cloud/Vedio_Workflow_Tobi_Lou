@@ -1084,16 +1084,16 @@ export default function TransitionVideoGenerator() {
                 <Button
                   onClick={handleGenerate}
                   disabled={isGenerating || !firstFrame || !lastFrame}
-                  className="flex-1 h-14 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-lg rounded-xl transition-all duration-300 disabled:opacity-50"
+                  className="flex-1 h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       正在生成...
                     </>
                   ) : (
                     <>
-                      <Play className="w-5 h-5 mr-2" />
+                      <Play className="w-4 h-4 mr-2" />
                       生成转场视频
                     </>
                   )}
@@ -1102,9 +1102,9 @@ export default function TransitionVideoGenerator() {
                   <Button
                     onClick={handleCancel}
                     variant="outline"
-                    className="h-14 px-4 border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                    className="h-12 px-4 border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                   >
-                    <XCircle className="w-5 h-5" />
+                    <XCircle className="w-4 h-4" />
                   </Button>
                 )}
               </div>
