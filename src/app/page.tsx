@@ -1104,7 +1104,7 @@ export default function TransitionVideoGenerator() {
                   <Button
                     onClick={handleCancel}
                     variant="outline"
-                    className="h-14 px-4 bg-black/60 hover:bg-red-500/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-red-400 hover:border-red-500/50 transition-all duration-300"
+                    className="h-14 px-4 border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                   >
                     <XCircle className="w-5 h-5" />
                   </Button>
@@ -1214,7 +1214,7 @@ export default function TransitionVideoGenerator() {
                       onClick={handleDownload}
                       variant="outline"
                       size="sm"
-                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                     >
                       <Download className="w-4 h-4 mr-2" />
                       下载视频
@@ -1262,7 +1262,7 @@ export default function TransitionVideoGenerator() {
                       onClick={() => setShowHistory(!showHistory)}
                       variant="outline"
                       size="sm"
-                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                     >
                       {showHistory ? '收起' : '展开'} ({history.length})
                     </Button>
@@ -1271,7 +1271,7 @@ export default function TransitionVideoGenerator() {
                         onClick={clearHistory}
                         variant="outline"
                         size="sm"
-                        className="bg-black/60 hover:bg-red-500/10 border border-red-500/40 text-red-400 hover:text-red-300 hover:border-red-500 transition-all duration-300"
+                        className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 transition-all duration-300"
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
                         清空
@@ -1330,7 +1330,8 @@ export default function TransitionVideoGenerator() {
                                 }
                               }}
                               size="sm"
-                              className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472]"
+                              variant="outline"
+                              className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472]"
                             >
                               <Download className="w-4 h-4 mr-1" />
                               下载
@@ -1346,8 +1347,8 @@ export default function TransitionVideoGenerator() {
                             <Button
                               onClick={() => deleteHistoryItem(item.id)}
                               size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 text-[#FFFFFF]/40 hover:text-red-400 hover:bg-transparent"
+                              variant="outline"
+                              className="h-6 w-6 p-0 border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -1396,7 +1397,7 @@ export default function TransitionVideoGenerator() {
                       }}
                       variant="outline"
                       size="sm"
-                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                     >
                       复制日志
                     </Button>
@@ -1404,7 +1405,7 @@ export default function TransitionVideoGenerator() {
                       onClick={() => setShowTechnicalLogs(!showTechnicalLogs)}
                       variant="outline"
                       size="sm"
-                      className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#FFFFFF] hover:text-[#CEA472] hover:border-[#CEA472] transition-all duration-300"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
                     >
                       {showTechnicalLogs ? '收起' : '展开'} ({technicalLogs.length})
                     </Button>
@@ -1491,11 +1492,12 @@ export default function TransitionVideoGenerator() {
                 <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
                 <Button
                   onClick={() => setPreviewHistoryItem(null)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-[#FFFFFF]/60 hover:text-[#FFFFFF]"
+                  variant="outline"
+                  size="icon"
+                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                  title="关闭"
                 >
-                  关闭
+                  <XCircle className="w-4 h-4 text-[#CEA472]" />
                 </Button>
               </div>
               <div className="p-4">
@@ -1581,17 +1583,18 @@ export default function TransitionVideoGenerator() {
                         setMonitorLoading(true);
                         fetchMonitorTasks().finally(() => setMonitorLoading(false));
                       }}
-                      variant="ghost"
-                      size="sm"
-                      className="text-[#CEA472] hover:text-[#CEA472] hover:bg-[#CEA472]/10"
+                      variant="outline"
+                      size="icon"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                      title="刷新"
                     >
-                      <RefreshCw className={`w-4 h-4 ${monitorLoading ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-4 h-4 text-[#CEA472] ${monitorLoading ? 'animate-spin' : ''}`} />
                     </Button>
                     <Button
                       onClick={() => setMonitorCollapsed(!monitorCollapsed)}
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="text-[#FFFFFF]/60 hover:text-[#FFFFFF]"
+                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472]"
                     >
                       {monitorCollapsed ? '展开' : '收起'}
                     </Button>
@@ -1687,7 +1690,7 @@ export default function TransitionVideoGenerator() {
                                   onClick={() => cancelTask(task.id)}
                                   variant="outline"
                                   size="sm"
-                                  className="bg-black/60 hover:bg-red-500/10 border border-red-500/40 text-red-400 hover:text-red-300 h-7"
+                                  className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 h-7"
                                 >
                                   <StopCircle className="w-3 h-3 mr-1" />
                                   取消
@@ -1717,7 +1720,7 @@ export default function TransitionVideoGenerator() {
                                   }}
                                   variant="outline"
                                   size="sm"
-                                  className="bg-black/60 hover:bg-[#CEA472]/10 border border-[#CEA472]/60 text-[#CEA472] h-7"
+                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-7"
                                 >
                                   <Download className="w-3 h-3 mr-1" />
                                   下载
