@@ -745,15 +745,6 @@ export default function TransitionVideoGenerator() {
                     </>
                   )}
                 </Button>
-                {canCancel && (
-                  <Button
-                    onClick={handleCancel}
-                    variant="outline"
-                    className="h-12 px-4 border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                )}
               </div>
             </div>
 
