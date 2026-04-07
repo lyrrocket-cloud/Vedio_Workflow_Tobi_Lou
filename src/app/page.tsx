@@ -779,9 +779,16 @@ export default function TransitionVideoGenerator() {
 
   const handleDownload = async () => {
     if (!videoUrl) return;
-    
+
     try {
-      const response = await fetch(videoUrl);
+      // 使用后端代理下载，避免CORS问题
+      const response = await fetch(`/api/download-video?url=${encodeURIComponent(videoUrl)}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '下载视频失败');
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -790,7 +797,9 @@ export default function TransitionVideoGenerator() {
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setError('下载视频失败');
+      const errorMessage = err instanceof Error ? err.message : '下载视频失败';
+      setError(errorMessage);
+      console.error('下载失败:', err);
     }
   };
 
@@ -1290,7 +1299,11 @@ export default function TransitionVideoGenerator() {
                             <Button
                               onClick={async () => {
                                 try {
-                                  const response = await fetch(item.videoUrl);
+                                  const response = await fetch(`/api/download-video?url=${encodeURIComponent(item.videoUrl)}`);
+                                  if (!response.ok) {
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.error || '下载失败');
+                                  }
                                   const blob = await response.blob();
                                   const url = window.URL.createObjectURL(blob);
                                   const link = document.createElement('a');
@@ -1491,7 +1504,11 @@ export default function TransitionVideoGenerator() {
                   <Button
                     onClick={async () => {
                       try {
-                        const response = await fetch(previewHistoryItem.videoUrl);
+                        const response = await fetch(`/api/download-video?url=${encodeURIComponent(previewHistoryItem.videoUrl)}`);
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.error || '下载失败');
+                        }
                         const blob = await response.blob();
                         const url = window.URL.createObjectURL(blob);
                         const link = document.createElement('a');
@@ -1668,7 +1685,11 @@ export default function TransitionVideoGenerator() {
                                 <Button
                                   onClick={async () => {
                                     try {
-                                      const response = await fetch(task.videoUrl!);
+                                      const response = await fetch(`/api/download-video?url=${encodeURIComponent(task.videoUrl!)}`);
+                                      if (!response.ok) {
+                                        const errorData = await response.json();
+                                        throw new Error(errorData.error || '下载失败');
+                                      }
                                       const blob = await response.blob();
                                       const url = window.URL.createObjectURL(blob);
                                       const link = document.createElement('a');
