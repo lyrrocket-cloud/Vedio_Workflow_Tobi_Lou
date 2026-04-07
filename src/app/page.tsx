@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, History, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -192,6 +192,22 @@ export default function TransitionVideoGenerator() {
       }
     } catch (err) {
       setError('取消任务失败');
+    }
+  }, [fetchMonitorTasks]);
+
+  // 删除任务
+  const deleteTaskItem = useCallback(async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/video-delete/${taskId}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) {
+        // 刷新任务列表
+        await fetchMonitorTasks();
+      } else {
+        setError(data.message || '删除任务失败');
+      }
+    } catch (err) {
+      setError('删除任务失败');
     }
   }, [fetchMonitorTasks]);
 
@@ -895,6 +911,17 @@ export default function TransitionVideoGenerator() {
                                     <StopCircle className="w-4 h-4 text-red-500" />
                                   </Button>
                                 )}
+
+                                {/* 删除按钮 */}
+                                <Button
+                                  onClick={() => deleteTaskItem(task.id)}
+                                  variant="outline"
+                                  size="icon"
+                                  className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
+                                  title="删除"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
 
                                 {/* 下载按钮 */}
                                 {task.status === 'succeeded' && task.videoUrl && (
