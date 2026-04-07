@@ -1209,10 +1209,10 @@ export default function TransitionVideoGenerator() {
                       onClick={handleDownload}
                       variant="outline"
                       size="icon"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300 h-8 w-8"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
                       title="下载视频"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="w-4 h-4 text-[#CEA472]" />
                     </Button>
                   )}
                 </CardTitle>
@@ -1257,20 +1257,20 @@ export default function TransitionVideoGenerator() {
                       onClick={() => setShowHistory(!showHistory)}
                       variant="outline"
                       size="icon"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
                       title={showHistory ? '收起' : '展开'}
                     >
-                      {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      {showHistory ? <ChevronUp className="w-4 h-4 text-[#CEA472]" /> : <ChevronDown className="w-4 h-4 text-[#CEA472]" />}
                     </Button>
                     {showHistory && (
                       <Button
                         onClick={clearHistory}
                         variant="outline"
                         size="icon"
-                        className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 transition-all duration-300"
+                        className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50"
                         title="清空"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
                     )}
                   </div>
@@ -1384,26 +1384,26 @@ export default function TransitionVideoGenerator() {
                   <div className="flex items-center gap-2">
                     <Button
                       onClick={() => {
-                        const logText = technicalLogs.map(log => 
+                        const logText = technicalLogs.map(log =>
                           `[${log.timestamp}] [${log.elapsed ?? 0}s] [${log.type.toUpperCase()}] [${log.category}] ${log.message}\n${log.details ? JSON.stringify(log.details, null, 2) : ''}`
                         ).join('\n\n');
                         navigator.clipboard.writeText(logText);
                       }}
                       variant="outline"
                       size="icon"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
                       title="复制日志"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy className="w-4 h-4 text-[#CEA472]" />
                     </Button>
                     <Button
                       onClick={() => setShowTechnicalLogs(!showTechnicalLogs)}
                       variant="outline"
                       size="icon"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
                       title={showTechnicalLogs ? '收起' : '展开'}
                     >
-                      {showTechnicalLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      {showTechnicalLogs ? <ChevronUp className="w-4 h-4 text-[#CEA472]" /> : <ChevronDown className="w-4 h-4 text-[#CEA472]" />}
                     </Button>
                   </div>
                 </div>
@@ -1516,10 +1516,10 @@ export default function TransitionVideoGenerator() {
                       onClick={() => setMonitorCollapsed(!monitorCollapsed)}
                       variant="outline"
                       size="icon"
-                      className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472]"
+                      className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
                       title={monitorCollapsed ? '展开' : '收起'}
                     >
-                      {monitorCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                      {monitorCollapsed ? <ChevronDown className="w-4 h-4 text-[#CEA472]" /> : <ChevronUp className="w-4 h-4 text-[#CEA472]" />}
                     </Button>
                   </div>
                 </div>
@@ -1601,26 +1601,26 @@ export default function TransitionVideoGenerator() {
                                   onClick={() => setVideoUrl(task.videoUrl!)}
                                   variant="outline"
                                   size="icon"
-                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-8 w-8"
+                                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
                                   title="查看"
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Eye className="w-4 h-4 text-[#CEA472]" />
                                 </Button>
                               )}
-                              
+
                               {/* 取消按钮 */}
                               {(task.status === 'queued' || task.status === 'running') && (
                                 <Button
                                   onClick={() => cancelTask(task.id)}
                                   variant="outline"
                                   size="icon"
-                                  className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 h-8 w-8"
+                                  className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
                                   title="取消"
                                 >
-                                  <StopCircle className="w-4 h-4" />
+                                  <StopCircle className="w-4 h-4 text-red-500" />
                                 </Button>
                               )}
-                              
+
                               {/* 下载按钮 */}
                               {task.status === 'succeeded' && task.videoUrl && (
                                 <Button
@@ -1644,10 +1644,10 @@ export default function TransitionVideoGenerator() {
                                   }}
                                   variant="outline"
                                   size="icon"
-                                  className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] h-8 w-8"
+                                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
                                   title="下载"
                                 >
-                                  <Download className="w-4 h-4" />
+                                  <Download className="w-4 h-4 text-[#CEA472]" />
                                 </Button>
                               )}
                             </div>
