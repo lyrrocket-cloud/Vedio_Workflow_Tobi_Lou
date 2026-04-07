@@ -76,6 +76,7 @@ export default function TransitionVideoGenerator() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [previewHistoryItem, setPreviewHistoryItem] = useState<HistoryItem | null>(null);
+  const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
 
   // Monitor state - 常驻底部显示
@@ -892,7 +893,14 @@ export default function TransitionVideoGenerator() {
                                 {/* 查看视频按钮 */}
                                 {task.status === 'succeeded' && task.videoUrl && (
                                   <Button
-                                    onClick={() => setVideoUrl(task.videoUrl!)}
+                                    onClick={() => setPreviewMonitorVideo({
+                                      url: task.videoUrl!,
+                                      params: {
+                                        duration: task.params.duration,
+                                        resolution: task.params.resolution,
+                                        ratio: task.params.ratio
+                                      }
+                                    })}
                                     variant="outline"
                                     size="icon"
                                     className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
@@ -901,30 +909,6 @@ export default function TransitionVideoGenerator() {
                                     <Eye className="w-4 h-4 text-[#CEA472]" />
                                   </Button>
                                 )}
-
-                                {/* 取消按钮 */}
-                                {(task.status === 'queued' || task.status === 'running') && (
-                                  <Button
-                                    onClick={() => cancelTask(task.id)}
-                                    variant="outline"
-                                    size="icon"
-                                    className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
-                                    title="取消"
-                                  >
-                                    <StopCircle className="w-4 h-4 text-red-500" />
-                                  </Button>
-                                )}
-
-                                {/* 删除按钮 */}
-                                <Button
-                                  onClick={() => deleteTaskItem(task.id)}
-                                  variant="outline"
-                                  size="icon"
-                                  className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
-                                  title="删除"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </Button>
 
                                 {/* 下载按钮 */}
                                 {task.status === 'succeeded' && task.videoUrl && (
@@ -953,6 +937,30 @@ export default function TransitionVideoGenerator() {
                                     title="下载"
                                   >
                                     <Download className="w-4 h-4 text-[#CEA472]" />
+                                  </Button>
+                                )}
+
+                                {/* 删除按钮 */}
+                                <Button
+                                  onClick={() => deleteTaskItem(task.id)}
+                                  variant="outline"
+                                  size="icon"
+                                  className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
+                                  title="删除"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+
+                                {/* 取消按钮 - 排在最后 */}
+                                {(task.status === 'queued' || task.status === 'running') && (
+                                  <Button
+                                    onClick={() => cancelTask(task.id)}
+                                    variant="outline"
+                                    size="icon"
+                                    className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
+                                    title="取消"
+                                  >
+                                    <StopCircle className="w-4 h-4 text-red-500" />
                                   </Button>
                                 )}
                               </div>
@@ -1159,6 +1167,73 @@ export default function TransitionVideoGenerator() {
                 <p className="mt-3 text-[#FFFFFF]/50 text-sm">
                   {previewHistoryItem.prompt}
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Monitor Video Preview Modal */}
+        {previewMonitorVideo && (
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setPreviewMonitorVideo(null)}
+          >
+            <div
+              className="bg-[#0a0a0f] border border-[#CEA472]/20 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-[#CEA472]/10">
+                <h3 className="text-[#FFFFFF] font-medium">视频预览</h3>
+                <Button
+                  onClick={() => setPreviewMonitorVideo(null)}
+                  variant="outline"
+                  size="icon"
+                  className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                  title="关闭"
+                >
+                  <XCircle className="w-4 h-4 text-[#CEA472]" />
+                </Button>
+              </div>
+              <div className="p-4">
+                <video
+                  src={previewMonitorVideo.url}
+                  controls
+                  autoPlay
+                  className="w-full rounded-lg"
+                />
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-[#FFFFFF]/60 text-sm">
+                    <span className="text-[#CEA472]">{previewMonitorVideo.params.duration}秒</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewMonitorVideo.params.resolution}</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewMonitorVideo.params.ratio}</span>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`/api/download-video?url=${encodeURIComponent(previewMonitorVideo.url)}`);
+                        if (!response.ok) {
+                          const errorData = await response.json();
+                          throw new Error(errorData.error || '下载失败');
+                        }
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `视频_${Date.now()}.mp4`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        console.error('Download failed:', err);
+                      }
+                    }}
+                    className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    下载视频
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
