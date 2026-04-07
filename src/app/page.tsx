@@ -126,13 +126,25 @@ export default function TransitionVideoGenerator() {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       createdAt: new Date().toISOString(),
     };
-    
+
     setHistory(prev => {
       const updated = [newItem, ...prev].slice(0, MAX_HISTORY_ITEMS);
       try {
         localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
       } catch (e) {
         console.error('Failed to save history:', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  const deleteHistoryItem = useCallback((itemId: string) => {
+    setHistory(prev => {
+      const updated = prev.filter(item => item.id !== itemId);
+      try {
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to delete history item:', e);
       }
       return updated;
     });
@@ -1011,11 +1023,11 @@ export default function TransitionVideoGenerator() {
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-2">
                             <Button
                               onClick={() => setPreviewHistoryItem(item)}
-                              size="sm"
-                              className="bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f]"
+                              size="icon"
+                              className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
+                              title="查看"
                             >
-                              <Eye className="w-4 h-4 mr-1" />
-                              查看
+                              <Eye className="w-4 h-4 text-[#CEA472]" />
                             </Button>
                             <Button
                               onClick={async () => {
@@ -1036,12 +1048,21 @@ export default function TransitionVideoGenerator() {
                                   console.error('Download failed:', err);
                                 }
                               }}
-                              size="sm"
+                              size="icon"
                               variant="outline"
-                              className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472]"
+                              className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50 h-8 w-8"
+                              title="下载"
                             >
-                              <Download className="w-4 h-4 mr-1" />
-                              下载
+                              <Download className="w-4 h-4 text-[#CEA472]" />
+                            </Button>
+                            <Button
+                              onClick={() => deleteHistoryItem(item.id)}
+                              size="icon"
+                              variant="outline"
+                              className="bg-black/40 border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 h-8 w-8"
+                              title="删除"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
                             </Button>
                           </div>
                         </div>
