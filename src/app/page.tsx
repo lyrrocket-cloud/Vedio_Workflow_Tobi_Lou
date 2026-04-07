@@ -823,7 +823,7 @@ export default function TransitionVideoGenerator() {
       {/* 背景遮罩层 */}
       <div className="absolute inset-0 bg-[#0a0a0f]/80" />
       
-      <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
+      <div className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="flex flex-col items-center justify-center gap-4 mb-4">
