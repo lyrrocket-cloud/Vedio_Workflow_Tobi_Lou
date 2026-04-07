@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, AlertCircle, Clock, Zap, Info, History, Trash2, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -1256,20 +1256,21 @@ export default function TransitionVideoGenerator() {
                     <Button
                       onClick={() => setShowHistory(!showHistory)}
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      title={showHistory ? '收起' : '展开'}
                     >
-                      {showHistory ? '收起' : '展开'} ({history.length})
+                      {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </Button>
                     {showHistory && (
                       <Button
                         onClick={clearHistory}
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500 transition-all duration-300"
+                        title="清空"
                       >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        清空
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
                   </div>
@@ -1389,18 +1390,20 @@ export default function TransitionVideoGenerator() {
                         navigator.clipboard.writeText(logText);
                       }}
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      title="复制日志"
                     >
-                      复制日志
+                      <Copy className="w-4 h-4" />
                     </Button>
                     <Button
                       onClick={() => setShowTechnicalLogs(!showTechnicalLogs)}
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] transition-all duration-300"
+                      title={showTechnicalLogs ? '收起' : '展开'}
                     >
-                      {showTechnicalLogs ? '收起' : '展开'} ({technicalLogs.length})
+                      {showTechnicalLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
@@ -1512,10 +1515,11 @@ export default function TransitionVideoGenerator() {
                     <Button
                       onClick={() => setMonitorCollapsed(!monitorCollapsed)}
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       className="border-[#CEA472]/30 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472]"
+                      title={monitorCollapsed ? '展开' : '收起'}
                     >
-                      {monitorCollapsed ? '展开' : '收起'}
+                      {monitorCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
