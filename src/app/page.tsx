@@ -714,7 +714,7 @@ export default function TransitionVideoGenerator() {
                     <div className="flex items-center gap-3">
                       <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                         <Monitor className="w-5 h-5 text-[#CEA472]" />
-                        异步任务监控
+                        任务监控
                       </CardTitle>
                       {/* 统计信息 */}
                       <div className="flex items-center gap-2 text-sm">
