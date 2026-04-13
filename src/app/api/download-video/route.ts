@@ -9,50 +9,30 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 从对象存储下载视频
+    console.log(`[ARK-DOWNLOAD] 下载视频: ${videoUrl.slice(0, 100)}...`);
+
     const response = await fetch(videoUrl);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('下载视频失败:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-        url: videoUrl.substring(0, 100) + '...',
-      });
-      throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+      throw new Error(`下载失败: ${response.status}`);
     }
 
-    // 获取视频blob
-    const blob = await response.blob();
+    const videoBuffer = await response.arrayBuffer();
+    const videoData = Buffer.from(videoBuffer);
 
-    // 检查是否是视频类型
-    const contentType = response.headers.get('content-type') || 'video/mp4';
-    if (!contentType.startsWith('video/')) {
-      console.error('下载的不是视频文件:', { contentType });
-      throw new Error('下载的不是有效的视频文件');
-    }
+    console.log(`[ARK-DOWNLOAD] 下载完成, 大小: ${videoData.length} bytes`);
 
-    // 返回视频blob给前端
-    return new NextResponse(blob, {
+    return new NextResponse(videoData, {
       headers: {
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="video-${Date.now()}.mp4"`,
-        'Cache-Control': 'no-cache',
+        'Content-Type': 'video/mp4',
+        'Content-Length': videoData.length.toString(),
+        'Content-Disposition': 'inline; filename="generated-video.mp4"',
+        'Cache-Control': 'public, max-age=86400',
       },
     });
-
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '下载视频失败';
-    console.error('下载视频异常:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      url: videoUrl.substring(0, 100) + '...',
-    });
-
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
+    console.error(`[ARK-DOWNLOAD] 下载失败: ${errorMessage}`);
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -63,8 +63,16 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
 
       if (taskStatus === 'succeed' || taskStatus === 'succeeded' || taskStatus === 'success' || taskStatus === 'completed') {
         // 获取视频URL - 尝试多种可能的字段
-        const videoUrl = data.output?.video_url || data.output?.video || data.video_url || data.url || data.output?.choices?.[0]?.video_url;
-        log('POLL_SUCCESS', '任务成功', { taskId, videoUrl, fullOutput: data.output });
+        // 注意：火山方舟API返回的video_url在data.content.video_url中
+        const videoUrl = 
+          data.content?.video_url || 
+          data.output?.video_url || 
+          data.output?.video || 
+          data.video_url || 
+          data.url || 
+          data.output?.choices?.[0]?.video_url;
+        
+        log('POLL_SUCCESS', '任务成功', { taskId, videoUrl, hasVideoUrl: !!videoUrl });
         
         // 更新任务状态为成功
         updateTask(taskId, {
