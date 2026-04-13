@@ -18,8 +18,12 @@ function log(stage: string, message: string, data?: Record<string, unknown>) {
 }
 
 // 火山方舟 API 配置
-const ARK_API_KEY = process.env.ARK_API_KEY || '5beaa835-c9f1-4ac4-907c-566a2e0e268b';
-const ARK_BASE_URL = 'https://ARK_ENDPOINT.open.bigmodel.cn/api/paas/v4';
+const ARK_API_KEY = process.env.ARK_API_KEY || '';
+const ARK_BASE_URL = process.env.ARK_BASE_URL || '';
+
+if (!ARK_API_KEY || !ARK_BASE_URL) {
+  console.error('[ARK-API] 缺少配置: ARK_API_KEY 或 ARK_BASE_URL 环境变量未设置');
+}
 
 // 分辨率映射
 const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
@@ -96,6 +100,13 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   log('REQUEST', '收到火山方舟视频生成请求');
   
+  // 检查 API 配置
+  if (!ARK_API_KEY || !ARK_BASE_URL) {
+    const error = '火山方舟 API 未配置。请设置 ARK_API_KEY 和 ARK_BASE_URL 环境变量。';
+    log('CONFIG_ERROR', error);
+    return NextResponse.json({ success: false, error }, { status: 500 });
+  }
+
   try {
     const body: GenerateVideoRequest = await request.json();
     const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio } = body;
