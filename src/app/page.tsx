@@ -663,43 +663,43 @@ export default function TransitionVideoGenerator() {
                   />
                 </div>
 
-                {/* Model Selection Toggle */}
-                <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <Label className="text-purple-400/80 flex items-center gap-2">
-                        <Server className="w-4 h-4" />
-                        选择模型
-                      </Label>
-                      <p className="text-xs text-[#FFFFFF]/50 mt-1">
-                        {selectedModel === 'coze' 
-                          ? 'Coze模型：需Coze API权限' 
-                          : '火山方舟Ark：需ARK_API_KEY配置'}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={selectedModel === 'ark'}
-                      onCheckedChange={(checked) => setSelectedModel(checked ? 'ark' : 'coze')}
-                    />
-                  </div>
+                {/* Model Selection Tabs */}
+                <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                      selectedModel === 'coze' 
-                        ? 'bg-[#CEA472]/10 border-[#CEA472]/40 text-[#CEA472]' 
-                        : 'bg-black/20 border-[#CEA472]/10 text-[#FFFFFF]/40'
-                    }`}>
-                      <Bot className="w-4 h-4" />
-                      <span className="text-sm font-medium">Coze (doubao)</span>
-                    </div>
-                    <div className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-                      selectedModel === 'ark' 
-                        ? 'bg-purple-500/10 border-purple-500/40 text-purple-400' 
-                        : 'bg-black/20 border-purple-500/10 text-[#FFFFFF]/40'
-                    }`}>
-                      <Server className="w-4 h-4" />
-                      <span className="text-sm font-medium">火山方舟Ark</span>
-                    </div>
+                    <Server className="w-4 h-4 text-[#CEA472]" />
+                    <Label className="text-[#FFFFFF]/80">选择模型</Label>
                   </div>
+                  <div className="flex rounded-lg border border-[#CEA472]/30 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModel('coze')}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all ${
+                        selectedModel === 'coze'
+                          ? 'bg-[#CEA472]/20 text-[#CEA472] border-r border-[#CEA472]/30'
+                          : 'bg-black/40 text-[#FFFFFF]/50 hover:text-[#FFFFFF]/70'
+                      }`}
+                    >
+                      <Bot className="w-4 h-4" />
+                      Coze (doubao)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModel('ark')}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all ${
+                        selectedModel === 'ark'
+                          ? 'bg-purple-500/20 text-purple-400'
+                          : 'bg-black/40 text-[#FFFFFF]/50 hover:text-[#FFFFFF]/70'
+                      }`}
+                    >
+                      <Server className="w-4 h-4" />
+                      火山方舟 Ark
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#FFFFFF]/50">
+                    {selectedModel === 'coze' 
+                      ? 'Coze模型：需Coze API权限，支持异步模式' 
+                      : '火山方舟Ark：需ARK_API_KEY配置，同步等待生成'}
+                  </p>
                 </div>
 
                 {/* Mock Mode Toggle */}
