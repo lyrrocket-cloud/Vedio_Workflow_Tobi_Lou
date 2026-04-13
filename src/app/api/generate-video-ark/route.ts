@@ -52,10 +52,27 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
       const taskStatus = data.status || data.task_status || data.state || 'unknown';
       log('POLL_STATUS', '任务状态解析', { taskId, rawStatus: data.status, parsedStatus: taskStatus, fullData: JSON.stringify(data).slice(0, 500) });
 
-      if (taskStatus === 'succeed' || taskStatus === 'success' || taskStatus === 'completed') {
+      // 调试：检查状态是否匹配
+      log('POLL_DEBUG', '状态匹配检查', { 
+        taskStatus, 
+        isSucceed: taskStatus === 'succeed',
+        isSuccess: taskStatus === 'success', 
+        isCompleted: taskStatus === 'completed',
+        isFailed: taskStatus === 'failed'
+      });
+
+      if (taskStatus === 'succeed' || taskStatus === 'succeeded' || taskStatus === 'success' || taskStatus === 'completed') {
         // 获取视频URL - 尝试多种可能的字段
         const videoUrl = data.output?.video_url || data.output?.video || data.video_url || data.url || data.output?.choices?.[0]?.video_url;
-        log('POLL_SUCCESS', '任务成功', { taskId, videoUrl });
+        log('POLL_SUCCESS', '任务成功', { taskId, videoUrl, fullOutput: data.output });
+        
+        // 更新任务状态为成功
+        updateTask(taskId, {
+          status: 'succeeded',
+          videoUrl: videoUrl,
+          updatedAt: Date.now(),
+        });
+        
         return { status: 'succeeded', videoUrl };
       } else if (taskStatus === 'failed' || taskStatus === 'fail' || taskStatus === 'error') {
         const errorMsg = data.error?.message || data.message || data.error || '任务失败';
