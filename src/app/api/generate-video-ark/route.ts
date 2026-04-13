@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       content: [
         {
           type: "text",
-          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark true`,
+          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark false`,
         },
         {
           type: "image_url",
