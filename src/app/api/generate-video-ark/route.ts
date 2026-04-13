@@ -108,20 +108,22 @@ export async function POST(request: NextRequest) {
       model: ARK_MODEL,
       content: [
         {
-          type: 'text',
-          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark true`,
-        },
-        {
-          type: 'image_url',
+          type: "image_url",
+          role: "user",
           image_url: {
             url: firstFrameUrl,
           },
         },
         {
-          type: 'image_url',
+          type: "image_url",
+          role: "assistant",
           image_url: {
             url: lastFrameUrl,
           },
+        },
+        {
+          type: "text",
+          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark true`,
         },
       ],
     };
