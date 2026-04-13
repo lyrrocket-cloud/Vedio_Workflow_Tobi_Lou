@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { setTask, VideoTask } from '@/lib/video-task-store';
+import { setTask, updateTask, VideoTask } from '@/lib/video-task-store';
 
 interface GenerateVideoRequest {
   firstFrameUrl: string;
@@ -19,40 +19,8 @@ function log(stage: string, message: string, data?: Record<string, unknown>) {
 
 // 火山方舟 API 配置
 const ARK_API_KEY = process.env.ARK_API_KEY || '';
-const ARK_BASE_URL = process.env.ARK_BASE_URL || '';
-
-if (!ARK_API_KEY || !ARK_BASE_URL) {
-  console.error('[ARK-API] 缺少配置: ARK_API_KEY 或 ARK_BASE_URL 环境变量未设置');
-}
-
-// 分辨率映射
-const RESOLUTION_MAP: Record<string, { width: number; height: number }> = {
-  '480p': { width: 854, height: 480 },
-  '720p': { width: 1280, height: 720 },
-  '1080p': { width: 1920, height: 1080 },
-};
-
-// 宽高比映射
-const RATIO_MAP: Record<string, { width: number; height: number }> = {
-  '16:9': { width: 16, height: 9 },
-  '9:16': { width: 9, height: 16 },
-  '1:1': { width: 1, height: 1 },
-  '4:3': { width: 4, height: 3 },
-  '3:4': { width: 3, height: 4 },
-};
-
-// 将图片URL下载并转换为base64
-async function fetchImageAsBase64(imageUrl: string): Promise<string> {
-  try {
-    const response = await fetch(imageUrl);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    return buffer.toString('base64');
-  } catch (error) {
-    log('IMAGE_ERROR', '图片下载失败', { url: imageUrl, error: String(error) });
-    throw new Error(`图片下载失败: ${imageUrl}`);
-  }
-}
+const ARK_BASE_URL = process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
+const ARK_MODEL = process.env.ARK_MODEL || 'ep-20260413164845-qq85t';
 
 // 轮询任务状态
 async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promise<{ status: string; videoUrl?: string; error?: string }> {
@@ -60,7 +28,7 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
   
   while (Date.now() - startTime < maxWaitTime * 1000) {
     try {
-      const response = await fetch(`${ARK_BASE_URL}/video/generations/${taskId}`, {
+      const response = await fetch(`${ARK_BASE_URL}/contents/generations/tasks/${taskId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${ARK_API_KEY}`,
@@ -75,15 +43,23 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
       }
 
       const data = await response.json();
-      log('POLL_STATUS', '任务状态', { taskId, status: data.task_status, progress: data.task_progress });
+      log('POLL_STATUS', '任务状态', { taskId, status: data.status, progress: data.progress });
 
-      if (data.task_status === 'SUCCESS') {
-        return { status: 'succeeded', videoUrl: data.video_url };
-      } else if (data.task_status === 'FAIL') {
-        return { status: 'failed', error: data.error?.message || '任务失败' };
-      } else if (data.task_status === 'CANCEL') {
+      if (data.status === 'succeed') {
+        // 获取视频URL
+        const videoUrl = data.output?.video_url || data.output?.choices?.[0]?.video_url;
+        return { status: 'succeeded', videoUrl };
+      } else if (data.status === 'failed') {
+        return { status: 'failed', error: data.error?.message || data.message || '任务失败' };
+      } else if (data.status === 'cancelled') {
         return { status: 'cancelled', error: '任务已取消' };
       }
+
+      // 更新任务状态
+      updateTask(taskId, {
+        status: 'running',
+        updatedAt: Date.now(),
+      });
 
       // 等待后继续轮询
       await new Promise(resolve => setTimeout(resolve, 5000));
@@ -101,8 +77,8 @@ export async function POST(request: NextRequest) {
   log('REQUEST', '收到火山方舟视频生成请求');
   
   // 检查 API 配置
-  if (!ARK_API_KEY || !ARK_BASE_URL) {
-    const error = '火山方舟 API 未配置。请设置 ARK_API_KEY 和 ARK_BASE_URL 环境变量。';
+  if (!ARK_API_KEY) {
+    const error = '火山方舟 API 未配置。请设置 ARK_API_KEY 环境变量。';
     log('CONFIG_ERROR', error);
     return NextResponse.json({ success: false, error }, { status: 500 });
   }
@@ -116,8 +92,9 @@ export async function POST(request: NextRequest) {
       resolution,
       ratio,
       generateAudio,
-      firstFrameUrlLength: firstFrameUrl?.length,
-      lastFrameUrlLength: lastFrameUrl?.length,
+      model: ARK_MODEL,
+      firstFrameUrl,
+      lastFrameUrl,
     });
 
     // Validate required fields
@@ -126,39 +103,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '首帧和尾帧图片URL是必需的' }, { status: 400 });
     }
 
-    // 下载图片并转换为 base64
-    log('DOWNLOAD', '下载图片', { firstFrameUrl, lastFrameUrl });
-    const [firstFrameBase64, lastFrameBase64] = await Promise.all([
-      fetchImageAsBase64(firstFrameUrl),
-      fetchImageAsBase64(lastFrameUrl),
-    ]);
-    log('DOWNLOAD', '图片下载完成');
-
-    // 获取分辨率和宽高比
-    const resConfig = RESOLUTION_MAP[resolution] || RESOLUTION_MAP['720p'];
-    const ratioConfig = RATIO_MAP[ratio] || RATIO_MAP['16:9'];
-
-    // 构建请求体
+    // 构建请求体 - 使用火山方舟API格式
     const requestBody = {
-      model: 'cogvideox',
-      prompt: prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。',
-      first_frame_image: firstFrameBase64,
-      last_frame_image: lastFrameBase64,
-      duration: duration || 5,
-      resolution: `${resConfig.width}x${resConfig.height}`,
-      aspect_ratio: `${ratioConfig.width}:${ratioConfig.height}`,
-      with_audio: generateAudio ?? false, // 默认静音
+      model: ARK_MODEL,
+      content: [
+        {
+          type: 'text',
+          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark true`,
+        },
+        {
+          type: 'image_url',
+          image_url: {
+            url: firstFrameUrl,
+          },
+        },
+        {
+          type: 'image_url',
+          image_url: {
+            url: lastFrameUrl,
+          },
+        },
+      ],
     };
 
     log('API_CALL', '调用火山方舟视频生成API', {
-      model: 'cogvideox',
-      duration: requestBody.duration,
-      resolution: requestBody.resolution,
-      aspect_ratio: requestBody.aspect_ratio,
+      url: `${ARK_BASE_URL}/contents/generations/tasks`,
+      model: ARK_MODEL,
+      duration: duration || 5,
     });
 
     // 调用火山方舟 API
-    const response = await fetch(`${ARK_BASE_URL}/video/generations`, {
+    const response = await fetch(`${ARK_BASE_URL}/contents/generations/tasks`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ARK_API_KEY}`,
@@ -178,6 +153,7 @@ export async function POST(request: NextRequest) {
 
     const taskId = data.id || data.task_id;
     if (!taskId) {
+      log('API_ERROR', '未获取到任务ID', { response: data });
       throw new Error('未获取到任务ID');
     }
 
@@ -204,7 +180,6 @@ export async function POST(request: NextRequest) {
     const result = await pollTaskStatus(taskId, 300);
 
     // 更新任务状态
-    const { updateTask } = await import('@/lib/video-task-store');
     updateTask(taskId, {
       status: result.status as 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled',
       videoUrl: result.videoUrl,
