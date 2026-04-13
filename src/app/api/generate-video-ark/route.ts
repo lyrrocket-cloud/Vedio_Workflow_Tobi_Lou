@@ -18,7 +18,7 @@ function log(stage: string, message: string, data?: Record<string, unknown>) {
 }
 
 // 火山方舟 API 配置
-const ARK_API_KEY = process.env.ARK_API_KEY || '';
+const ARK_API_KEY = process.env.ARK_API_KEY || '5beaa835-c9f1-4ac4-907c-566a2e0e268b';
 const ARK_BASE_URL = process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
 const ARK_MODEL = process.env.ARK_MODEL || 'ep-20260413164845-qq85t';
 
