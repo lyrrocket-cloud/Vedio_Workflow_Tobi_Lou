@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server } from 'lucide-react';
 
 interface UploadResponse {
   success: boolean;
@@ -55,10 +55,11 @@ export default function TransitionVideoGenerator() {
   const [duration, setDuration] = useState<number>(5);
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
-  const [generateAudio, setGenerateAudio] = useState<boolean>(true);
+  const [generateAudio, setGenerateAudio] = useState<boolean>(false); // 默认静音
   const [mockMode, setMockMode] = useState<boolean>(false);
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
   const [removeWatermark, setRemoveWatermark] = useState<boolean>(true); // 默认开启去水印
+  const [selectedModel, setSelectedModel] = useState<'coze' | 'ark'>('coze'); // 模型选择
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -276,13 +277,19 @@ export default function TransitionVideoGenerator() {
         uploadImage(lastFrame),
       ]);
 
-      // 根据模式选择生成方式
-      if (asyncMode) {
-        // 异步模式：提交任务后立即返回，通过SSE监听状态
-        await handleGenerateAsync(firstFrameUrl, lastFrameUrl);
+      // 根据选择的模型选择生成方式
+      if (selectedModel === 'ark') {
+        // 火山方舟Ark模型
+        await handleGenerateArk(firstFrameUrl, lastFrameUrl);
       } else {
-        // 同步模式：使用SSE阻塞等待
-        await handleGenerateSync(firstFrameUrl, lastFrameUrl);
+        // Coze模型
+        if (asyncMode) {
+          // 异步模式：提交任务后立即返回，通过SSE监听状态
+          await handleGenerateAsync(firstFrameUrl, lastFrameUrl);
+        } else {
+          // 同步模式：使用SSE阻塞等待
+          await handleGenerateSync(firstFrameUrl, lastFrameUrl);
+        }
       }
     } catch (err) {
       // Handle abort error
@@ -296,6 +303,42 @@ export default function TransitionVideoGenerator() {
       setIsGenerating(false);
       setCanCancel(false);
       abortControllerRef.current = null;
+    }
+  };
+
+  // 火山方舟Ark模型生成视频
+  const handleGenerateArk = async (firstFrameUrl: string, lastFrameUrl: string) => {
+    const response = await fetch('/api/generate-video-ark', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        firstFrameUrl,
+        lastFrameUrl,
+        prompt,
+        duration,
+        resolution,
+        ratio,
+        generateAudio,
+      }),
+      signal: abortControllerRef.current?.signal,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+    }
+
+    if (data.videoUrl) {
+      setVideoUrl(data.videoUrl);
+    } else {
+      // 如果有taskId，查询状态
+      if (data.taskId) {
+        // 等待任务完成
+        setError('Ark模型任务已提交，请等待处理完成...');
+      }
     }
   };
 
@@ -618,6 +661,45 @@ export default function TransitionVideoGenerator() {
                     checked={generateAudio}
                     onCheckedChange={setGenerateAudio}
                   />
+                </div>
+
+                {/* Model Selection Toggle */}
+                <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <Label className="text-purple-400/80 flex items-center gap-2">
+                        <Server className="w-4 h-4" />
+                        选择模型
+                      </Label>
+                      <p className="text-xs text-[#FFFFFF]/50 mt-1">
+                        {selectedModel === 'coze' 
+                          ? 'Coze模型：需Coze API权限' 
+                          : '火山方舟Ark：需ARK_API_KEY配置'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={selectedModel === 'ark'}
+                      onCheckedChange={(checked) => setSelectedModel(checked ? 'ark' : 'coze')}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                      selectedModel === 'coze' 
+                        ? 'bg-[#CEA472]/10 border-[#CEA472]/40 text-[#CEA472]' 
+                        : 'bg-black/20 border-[#CEA472]/10 text-[#FFFFFF]/40'
+                    }`}>
+                      <Bot className="w-4 h-4" />
+                      <span className="text-sm font-medium">Coze (doubao)</span>
+                    </div>
+                    <div className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                      selectedModel === 'ark' 
+                        ? 'bg-purple-500/10 border-purple-500/40 text-purple-400' 
+                        : 'bg-black/20 border-purple-500/10 text-[#FFFFFF]/40'
+                    }`}>
+                      <Server className="w-4 h-4" />
+                      <span className="text-sm font-medium">火山方舟Ark</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Mock Mode Toggle */}
