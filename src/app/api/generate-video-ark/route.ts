@@ -28,7 +28,10 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
   
   while (Date.now() - startTime < maxWaitTime * 1000) {
     try {
-      const response = await fetch(`${ARK_BASE_URL}/contents/generations/tasks/${taskId}`, {
+      const pollUrl = `${ARK_BASE_URL}/contents/generations/tasks/${taskId}`;
+      log('POLL_REQUEST', '查询任务状态', { url: pollUrl, taskId });
+      
+      const response = await fetch(pollUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${ARK_API_KEY}`,
@@ -43,17 +46,28 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
       }
 
       const data = await response.json();
-      log('POLL_STATUS', '任务状态', { taskId, status: data.status, progress: data.progress });
+      log('POLL_RESPONSE', '任务响应', { taskId, data });
 
-      if (data.status === 'succeed') {
-        // 获取视频URL
-        const videoUrl = data.output?.video_url || data.output?.choices?.[0]?.video_url;
+      // 检查各种可能的状态字段
+      const taskStatus = data.status || data.task_status || data.state || 'unknown';
+      log('POLL_STATUS', '任务状态解析', { taskId, rawStatus: data.status, parsedStatus: taskStatus, fullData: JSON.stringify(data).slice(0, 500) });
+
+      if (taskStatus === 'succeed' || taskStatus === 'success' || taskStatus === 'completed') {
+        // 获取视频URL - 尝试多种可能的字段
+        const videoUrl = data.output?.video_url || data.output?.video || data.video_url || data.url || data.output?.choices?.[0]?.video_url;
+        log('POLL_SUCCESS', '任务成功', { taskId, videoUrl });
         return { status: 'succeeded', videoUrl };
-      } else if (data.status === 'failed') {
-        return { status: 'failed', error: data.error?.message || data.message || '任务失败' };
-      } else if (data.status === 'cancelled') {
+      } else if (taskStatus === 'failed' || taskStatus === 'fail' || taskStatus === 'error') {
+        const errorMsg = data.error?.message || data.message || data.error || '任务失败';
+        log('POLL_FAILED', '任务失败', { taskId, error: errorMsg });
+        return { status: 'failed', error: errorMsg };
+      } else if (taskStatus === 'cancelled' || taskStatus === 'cancel') {
+        log('POLL_CANCELLED', '任务取消', { taskId });
         return { status: 'cancelled', error: '任务已取消' };
       }
+
+      // pending, running, in_progress 等状态都继续轮询
+      log('POLL_RUNNING', '任务进行中，继续等待', { taskId, status: taskStatus });
 
       // 更新任务状态
       updateTask(taskId, {
@@ -69,6 +83,7 @@ async function pollTaskStatus(taskId: string, maxWaitTime: number = 300): Promis
     }
   }
 
+  log('POLL_TIMEOUT', '任务超时', { taskId, maxWaitTime });
   return { status: 'running', error: '任务超时' };
 }
 
