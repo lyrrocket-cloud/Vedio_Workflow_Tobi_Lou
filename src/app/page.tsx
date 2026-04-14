@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Zap, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UploadResponse {
   success: boolean;
@@ -663,38 +664,53 @@ export default function TransitionVideoGenerator() {
                   />
                 </div>
 
+                {/* Remove Watermark Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-[#FFFFFF]/80 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#CEA472]" />
+                      去水印
+                    </Label>
+                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
+                      {removeWatermark 
+                        ? '已开启：生成视频不包含水印' 
+                        : '已关闭：生成视频可能包含水印'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={removeWatermark}
+                    onCheckedChange={setRemoveWatermark}
+                  />
+                </div>
+
                 {/* Model Selection Tabs */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Server className="w-4 h-4 text-[#CEA472]" />
                     <Label className="text-[#FFFFFF]/80">选择模型</Label>
                   </div>
-                  <div className="flex rounded-lg border border-[#CEA472]/30 overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedModel('coze')}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all ${
-                        selectedModel === 'coze'
-                          ? 'bg-[#CEA472]/20 text-[#CEA472] border-r border-[#CEA472]/30'
-                          : 'bg-black/40 text-[#FFFFFF]/50 hover:text-[#FFFFFF]/70'
-                      }`}
-                    >
-                      <Bot className="w-4 h-4" />
-                      Coze (doubao)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedModel('ark')}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all ${
-                        selectedModel === 'ark'
-                          ? 'bg-purple-500/20 text-purple-400'
-                          : 'bg-black/40 text-[#FFFFFF]/50 hover:text-[#FFFFFF]/70'
-                      }`}
-                    >
-                      <Server className="w-4 h-4" />
-                      火山方舟 Ark
-                    </button>
-                  </div>
+                  <Tabs 
+                    value={selectedModel} 
+                    onValueChange={(value) => setSelectedModel(value as 'coze' | 'ark')} 
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+                      <TabsTrigger 
+                        value="coze" 
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                      >
+                        <Bot className="w-4 h-4 mr-2" />
+                        Coze (doubao)
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="ark" 
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                      >
+                        <Server className="w-4 h-4 mr-2" />
+                        火山方舟 Ark
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                   <p className="text-xs text-[#FFFFFF]/50">
                     {selectedModel === 'coze' 
                       ? 'Coze模型：需Coze API权限，支持异步模式' 
@@ -714,44 +730,6 @@ export default function TransitionVideoGenerator() {
                   <Switch
                     checked={mockMode}
                     onCheckedChange={setMockMode}
-                  />
-                </div>
-
-                {/* Remove Watermark Toggle */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <div>
-                    <Label className="text-blue-400/80 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      去水印
-                    </Label>
-                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
-                      {removeWatermark 
-                        ? '已开启：生成视频不包含水印' 
-                        : '已关闭：生成视频可能包含水印'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={removeWatermark}
-                    onCheckedChange={setRemoveWatermark}
-                  />
-                </div>
-
-                {/* Async Mode Toggle */}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
-                  <div>
-                    <Label className="text-green-400/80 flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      异步模式
-                    </Label>
-                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
-                      {asyncMode 
-                        ? '任务提交后可关闭页面，后台继续处理' 
-                        : '同步等待生成完成，实时显示进度'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={asyncMode}
-                    onCheckedChange={setAsyncMode}
                   />
                 </div>
               </CardContent>
