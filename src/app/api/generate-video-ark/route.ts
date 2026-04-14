@@ -9,6 +9,7 @@ interface GenerateVideoRequest {
   resolution: string;
   ratio: string;
   generateAudio: boolean;
+  removeWatermark: boolean;
 }
 
 // Log helper with timestamp
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: GenerateVideoRequest = await request.json();
-    const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio } = body;
+    const { firstFrameUrl, lastFrameUrl, prompt, duration, resolution, ratio, generateAudio, removeWatermark } = body;
 
     log('REQUEST_BODY', '请求参数', {
       duration,
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
       content: [
         {
           type: "text",
-          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark false`,
+          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark ${removeWatermark === false ? 'true' : 'false'}`,
         },
         {
           type: "image_url",

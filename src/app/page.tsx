@@ -321,6 +321,7 @@ export default function TransitionVideoGenerator() {
         resolution,
         ratio,
         generateAudio,
+        removeWatermark,
       }),
       signal: abortControllerRef.current?.signal,
     });
