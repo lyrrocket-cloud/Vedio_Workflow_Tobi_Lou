@@ -67,7 +67,6 @@ export default function TransitionVideoGenerator() {
   
   // 配音生成状态
   const [voiceText, setVoiceText] = useState<string>('');
-  const [voiceResultUrl, setVoiceResultUrl] = useState<string>('');
   const [isGeneratingVoice, setIsGeneratingVoice] = useState<boolean>(false);
   const [voiceError, setVoiceError] = useState<string>('');
   const [voiceHistory, setVoiceHistory] = useState<Array<{id: string; text: string; url: string; time: string}>>([]);
@@ -156,8 +155,6 @@ export default function TransitionVideoGenerator() {
         url: data.audioUrl,
         time: new Date().toLocaleTimeString(),
       }, ...prev].slice(0, 10)); // 保留最近10条
-
-      setVoiceResultUrl(data.audioUrl);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '配音生成失败';
       setVoiceError(errorMessage);
@@ -165,21 +162,7 @@ export default function TransitionVideoGenerator() {
     } finally {
       setIsGeneratingVoice(false);
     }
-  };
 
-  // 下载配音
-  const handleDownloadVoice = async () => {
-    if (!voiceResultUrl) return;
-
-    try {
-      // 配音是 base64 数据，直接下载
-      const link = document.createElement('a');
-      link.href = voiceResultUrl;
-      link.download = `配音-${Date.now()}.mp3`;
-      link.click();
-    } catch (err) {
-      console.error('下载失败:', err);
-    }
   };
 
   const handleDrop = useCallback((
@@ -1138,27 +1121,6 @@ export default function TransitionVideoGenerator() {
                     {voiceError}
                   </div>
                 )}
-
-                {/* 生成结果预览 */}
-                {voiceResultUrl && (
-                  <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 space-y-3">
-                    <p className="text-[#FFFFFF]/80 text-sm font-medium">生成结果</p>
-                    <audio 
-                      src={voiceResultUrl} 
-                      controls 
-                      className="w-full"
-                    />
-                    <Button
-                      onClick={handleDownloadVoice}
-                      variant="outline"
-                      size="sm"
-                      className="w-full bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      下载
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -1178,29 +1140,53 @@ export default function TransitionVideoGenerator() {
                 {voiceHistory.length > 0 ? (
                   <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
                     <div className="max-h-[300px] overflow-y-auto">
-                      {voiceHistory.map((item) => (
+                      {voiceHistory.map((item, index) => (
                         <div 
                           key={item.id}
                           className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
                         >
+                          <span className="text-[#FFFFFF]/50 text-xs w-5">{index + 1}</span>
                           <Mic className="w-4 h-4 text-[#CEA472] shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-[#FFFFFF] text-sm truncate">{item.text}</p>
                             <p className="text-[#FFFFFF]/40 text-xs mt-0.5">{item.time}</p>
                           </div>
                           <audio 
+                            id={`voice-audio-${item.id}`}
                             src={item.url} 
-                            controls 
-                            className="h-6 w-32 shrink-0"
-                            onPlay={(e) => {
-                              const audios = document.querySelectorAll('audio');
-                              audios.forEach(audio => {
-                                if (audio !== e.currentTarget) {
-                                  audio.pause();
-                                }
-                              });
+                            className="hidden"
+                            onEnded={(e) => {
+                              const btn = document.getElementById(`voice-btn-${item.id}`);
+                              if (btn) {
+                                btn.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
+                              }
                             }}
                           />
+                          <button
+                            id={`voice-btn-${item.id}`}
+                            onClick={() => {
+                              const audio = document.getElementById(`voice-audio-${item.id}`) as HTMLAudioElement;
+                              if (audio) {
+                                // 停止其他音频
+                                document.querySelectorAll('audio').forEach(a => {
+                                  if (a !== audio) a.pause();
+                                });
+                                if (audio.paused) {
+                                  audio.play();
+                                  event.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"></rect><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"></rect></svg>';
+                                } else {
+                                  audio.pause();
+                                  event.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
+                                }
+                              }
+                            }}
+                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                            title="预览"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </button>
                           <button
                             onClick={() => {
                               const link = document.createElement('a');
@@ -1208,10 +1194,10 @@ export default function TransitionVideoGenerator() {
                               link.download = `配音-${item.id}.mp3`;
                               link.click();
                             }}
-                            className="p-1.5 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
+                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
                             title="下载"
                           >
-                            <Download className="w-4 h-4 text-[#CEA472]" />
+                            <Download className="w-4 h-4" />
                           </button>
                         </div>
                       ))}
