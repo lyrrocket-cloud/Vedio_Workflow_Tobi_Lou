@@ -128,7 +128,6 @@ export default function TransitionVideoGenerator() {
 
     setIsGeneratingVoice(true);
     setVoiceError('');
-    setVoiceResultUrl('');
 
     // 生成任务ID
     const taskId = `voice_${Date.now()}`;
