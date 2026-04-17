@@ -61,11 +61,6 @@ export default function TransitionVideoGenerator() {
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
   const [removeWatermark, setRemoveWatermark] = useState<boolean>(true); // 默认开启去水印
   const [selectedModel, setSelectedModel] = useState<'coze' | 'ark'>('coze'); // 模型选择
-  const [workflowTab, setWorkflowTab] = useState<'video' | 'voice' | 'sfx'>('video'); // 工作流Tab
-  const [voiceText, setVoiceText] = useState<string>(''); // 配音文本
-  const [voiceResult, setVoiceResult] = useState<string>(''); // 配音结果
-  const [sfxPrompt, setSfxPrompt] = useState<string>(''); // 音效描述
-  const [sfxResult, setSfxResult] = useState<string>(''); // 音效结果
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -456,8 +451,8 @@ export default function TransitionVideoGenerator() {
       
       <div className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex flex-col items-center justify-center gap-4 mb-6">
+        <div className="text-center mb-10">
+          <div className="flex flex-col items-center justify-center gap-4 mb-4">
             {/* 图标容器 - 金色衬底 + 黑色线框 */}
             <div
               className="w-20 h-20 flex items-center justify-center rounded-2xl"
@@ -473,39 +468,40 @@ export default function TransitionVideoGenerator() {
             <h1 className="text-5xl font-bold text-white drop-shadow-lg">
               视频工作流
             </h1>
+            
+            {/* 工作流Tab切换 */}
+            <Tabs defaultValue="video" className="w-full max-w-md mt-6">
+              <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+                <TabsTrigger 
+                  value="video" 
+                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                >
+                  <Video className="w-4 h-4 mr-2" />
+                  视频生成
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="voiceover" 
+                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                >
+                  <Mic className="w-4 h-4 mr-2" />
+                  配音生成
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="sfx" 
+                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                >
+                  <Volume2 className="w-4 h-4 mr-2" />
+                  音效生成
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-
-          {/* 工作流Tab切换 */}
-          <Tabs value={workflowTab} onValueChange={(v) => setWorkflowTab(v as typeof workflowTab)} className="w-full max-w-2xl mx-auto">
-            <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
-              <TabsTrigger 
-                value="video" 
-                className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-              >
-                <Video className="w-4 h-4 mr-2" />
-                视频生成
-              </TabsTrigger>
-              <TabsTrigger 
-                value="voice" 
-                className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-              >
-                <Mic className="w-4 h-4 mr-2" />
-                配音生成
-              </TabsTrigger>
-              <TabsTrigger 
-                value="sfx" 
-                className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-              >
-                <Volume2 className="w-4 h-4 mr-2" />
-                音效生成
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
         </div>
 
-        {/* 视频生成 Tab */}
-        <TabsContent value="video" className="mt-6">
-          <div className="space-y-6">
+        <Tabs defaultValue="video" className="space-y-6">
+          {/* 视频生成Tab */}
+          <TabsContent value="video" className="space-y-6 mt-0">
+            {/* Image Upload Section */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
@@ -800,7 +796,7 @@ export default function TransitionVideoGenerator() {
             )}
 
             {/* Task Monitor - 移至主区域顶部 */}
-            {asyncMode && (
+            {true && (
               <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -1012,7 +1008,53 @@ export default function TransitionVideoGenerator() {
               </Card>
             )}
 
-        </div>
+          </TabsContent>
+
+          {/* 配音生成Tab */}
+          <TabsContent value="voiceover" className="mt-0">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Mic className="w-5 h-5 text-[#CEA472]" />
+                  配音生成
+                </CardTitle>
+                <CardDescription className="text-[#FFFFFF]/60">
+                  输入文本生成配音
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-[#FFFFFF]/50">
+                  <Mic className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg">配音生成功能</p>
+                  <p className="text-sm mt-2">即将推出...</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 音效生成Tab */}
+          <TabsContent value="sfx" className="mt-0">
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Volume2 className="w-5 h-5 text-[#CEA472]" />
+                  音效生成
+                </CardTitle>
+                <CardDescription className="text-[#FFFFFF]/60">
+                  生成各种音效
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-[#FFFFFF]/50">
+                  <Volume2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg">音效生成功能</p>
+                  <p className="text-sm mt-2">即将推出...</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
 
         {/* Monitor Video Preview Modal */}
         {previewMonitorVideo && (
@@ -1082,125 +1124,8 @@ export default function TransitionVideoGenerator() {
             </div>
           </div>
         )}
-        </TabsContent>
 
-        {/* 配音生成 Tab */}
-        <TabsContent value="voice" className="mt-6 space-y-6">
-          <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-            <CardHeader>
-              <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                <Mic className="w-5 h-5 text-[#CEA472]" />
-                配音生成
-              </CardTitle>
-              <CardDescription className="text-[#FFFFFF]/60">
-                输入文本，AI为您生成配音
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="请输入要转换的文本内容..."
-                value={voiceText}
-                onChange={(e) => setVoiceText(e.target.value)}
-                className="min-h-[150px] bg-black/40 border-[#CEA472]/20 text-white placeholder:text-[#FFFFFF]/30 resize-none focus:border-[#CEA472]/50 focus:ring-[#CEA472]/20"
-              />
-              <Button
-                onClick={() => {
-                  if (!voiceText.trim()) {
-                    setError('请输入配音文本');
-                    return;
-                  }
-                  setIsGenerating(true);
-                  setError('');
-                  // TODO: 调用配音生成API
-                  setTimeout(() => {
-                    setVoiceResult('配音生成功能开发中...');
-                    setIsGenerating(false);
-                  }, 1500);
-                }}
-                disabled={isGenerating || !voiceText.trim()}
-                className="w-full bg-[#CEA472] hover:bg-[#CEA472]/90 text-black font-semibold"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    生成配音
-                  </>
-                )}
-              </Button>
-              {voiceResult && (
-                <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <p className="text-green-400 text-sm mb-2">配音生成成功</p>
-                  <audio controls className="w-full" src={voiceResult} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 音效生成 Tab */}
-        <TabsContent value="sfx" className="mt-6 space-y-6">
-          <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-            <CardHeader>
-              <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                <Volume2 className="w-5 h-5 text-[#CEA472]" />
-                音效生成
-              </CardTitle>
-              <CardDescription className="text-[#FFFFFF]/60">
-                描述想要的音效，AI为您生成
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="请描述想要的音效，如：下雨天窗外雨滴落在屋顶的声音，轻柔的风声..."
-                value={sfxPrompt}
-                onChange={(e) => setSfxPrompt(e.target.value)}
-                className="min-h-[150px] bg-black/40 border-[#CEA472]/20 text-white placeholder:text-[#FFFFFF]/30 resize-none focus:border-[#CEA472]/50 focus:ring-[#CEA472]/20"
-              />
-              <Button
-                onClick={() => {
-                  if (!sfxPrompt.trim()) {
-                    setError('请输入音效描述');
-                    return;
-                  }
-                  setIsGenerating(true);
-                  setError('');
-                  // TODO: 调用音效生成API
-                  setTimeout(() => {
-                    setSfxResult('音效生成功能开发中...');
-                    setIsGenerating(false);
-                  }, 1500);
-                }}
-                disabled={isGenerating || !sfxPrompt.trim()}
-                className="w-full bg-[#CEA472] hover:bg-[#CEA472]/90 text-black font-semibold"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    生成中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    生成音效
-                  </>
-                )}
-              </Button>
-              {sfxResult && (
-                <div className="mt-4 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <p className="text-green-400 text-sm mb-2">音效生成成功</p>
-                  <audio controls className="w-full" src={sfxResult} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 全局Footer */}
+        {/* Footer */}
         <div className="text-center mt-12 text-[#FFFFFF]/30 text-sm">
           由 AI 视频生成模型驱动
         </div>
