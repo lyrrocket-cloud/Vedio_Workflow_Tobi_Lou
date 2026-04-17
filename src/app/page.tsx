@@ -1023,10 +1023,9 @@ export default function TransitionVideoGenerator() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-[#FFFFFF]/50">
-                  <Mic className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                  <p className="text-lg">配音生成功能</p>
-                  <p className="text-sm mt-2">即将推出...</p>
+                <div className="text-center py-16 text-[#FFFFFF]/50">
+                  <p className="text-2xl font-semibold text-[#CEA472]">敬请期待</p>
+                  <p className="text-sm mt-2">配音生成功能即将上线</p>
                 </div>
               </CardContent>
             </Card>
@@ -1045,10 +1044,9 @@ export default function TransitionVideoGenerator() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-[#FFFFFF]/50">
-                  <Volume2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                  <p className="text-lg">音效生成功能</p>
-                  <p className="text-sm mt-2">即将推出...</p>
+                <div className="text-center py-16 text-[#FFFFFF]/50">
+                  <p className="text-2xl font-semibold text-[#CEA472]">敬请期待</p>
+                  <p className="text-sm mt-2">音效生成功能即将上线</p>
                 </div>
               </CardContent>
             </Card>
