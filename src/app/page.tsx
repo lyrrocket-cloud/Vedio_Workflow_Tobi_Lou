@@ -172,18 +172,11 @@ export default function TransitionVideoGenerator() {
     if (!voiceResultUrl) return;
 
     try {
-      const response = await fetch(`/api/download-video?url=${encodeURIComponent(voiceResultUrl)}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || '下载失败');
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      // 配音是 base64 数据，直接下载
       const link = document.createElement('a');
-      link.href = url;
+      link.href = voiceResultUrl;
       link.download = `配音-${Date.now()}.mp3`;
       link.click();
-      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('下载失败:', err);
     }
@@ -1201,6 +1194,18 @@ export default function TransitionVideoGenerator() {
                                 });
                               }}
                             />
+                            <button
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = item.url;
+                                link.download = `配音-${item.id}.mp3`;
+                                link.click();
+                              }}
+                              className="p-1.5 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
+                              title="下载"
+                            >
+                              <Download className="w-4 h-4 text-[#CEA472]" />
+                            </button>
                           </div>
                         ))}
                       </div>
