@@ -468,37 +468,35 @@ export default function TransitionVideoGenerator() {
             <h1 className="text-5xl font-bold text-white drop-shadow-lg">
               视频工作流
             </h1>
-            
-            {/* 工作流Tab切换 */}
-            <Tabs defaultValue="video" className="w-full max-w-md mt-6">
-              <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
-                <TabsTrigger 
-                  value="video" 
-                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-                >
-                  <Video className="w-4 h-4 mr-2" />
-                  视频生成
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="voiceover" 
-                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-                >
-                  <Mic className="w-4 h-4 mr-2" />
-                  配音生成
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="sfx" 
-                  className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
-                >
-                  <Volume2 className="w-4 h-4 mr-2" />
-                  音效生成
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
         </div>
 
         <Tabs defaultValue="video" className="space-y-6">
+          {/* 工作流Tab切换 */}
+          <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+            <TabsTrigger 
+              value="video" 
+              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+            >
+              <Video className="w-4 h-4 mr-2" />
+              视频生成
+            </TabsTrigger>
+            <TabsTrigger 
+              value="voiceover" 
+              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+            >
+              <Mic className="w-4 h-4 mr-2" />
+              配音生成
+            </TabsTrigger>
+            <TabsTrigger 
+              value="sfx" 
+              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+            >
+              <Volume2 className="w-4 h-4 mr-2" />
+              音效生成
+            </TabsTrigger>
+          </TabsList>
+
           {/* 视频生成Tab */}
           <TabsContent value="video" className="space-y-6 mt-0">
             {/* Image Upload Section */}
