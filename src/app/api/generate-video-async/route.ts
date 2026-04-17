@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { VideoGenerationClient, Config, HeaderUtils, Content } from 'coze-coding-dev-sdk';
-import { setTask, VideoTask } from '@/lib/video-task-store';
+import { setTask, updateTask, VideoTask } from '@/lib/video-task-store';
 
 interface GenerateVideoRequest {
   firstFrameUrl: string;
@@ -66,10 +66,8 @@ export async function POST(request: NextRequest) {
     
     log('MOCK_TASK', '模拟模式创建任务', { taskId: mockTaskId });
     
-    // Simulate processing in background
+    // Simulate processing in background - 使用直接导入的 updateTask（不要用 dynamic import）
     setTimeout(async () => {
-      const { updateTask } = await import('@/lib/video-task-store');
-      
       // Simulate processing time
       await new Promise(resolve => setTimeout(resolve, 5000));
       

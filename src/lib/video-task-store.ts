@@ -1,6 +1,6 @@
 /**
  * 视频生成任务状态存储
- * 使用内存Map存储，适用于单实例部署
+ * 使用全局变量确保跨模块共享状态
  */
 
 import { TaskStatus } from 'coze-coding-dev-sdk';
@@ -25,19 +25,32 @@ export interface VideoTask {
   };
 }
 
-// 内存存储
-const taskStore = new Map<string, VideoTask>();
+// 全局任务存储 - 在所有模块实例间共享
+// @ts-ignore - 全局变量用于跨模块共享状态
+declare global {
+  var __videoTasks__: Map<string, VideoTask> | undefined;
+}
+
+// 延迟初始化，确保全局变量存在
+function getTaskStore(): Map<string, VideoTask> {
+  if (!global.__videoTasks__) {
+    global.__videoTasks__ = new Map();
+  }
+  return global.__videoTasks__;
+}
 
 export function getTask(taskId: string): VideoTask | undefined {
-  return taskStore.get(taskId);
+  return getTaskStore().get(taskId);
 }
 
 export function setTask(taskId: string, task: VideoTask): void {
-  taskStore.set(taskId, task);
+  getTaskStore().set(taskId, task);
+  console.log('SET', `任务已存储: ${taskId}`, { total: getTaskStore().size });
 }
 
 export function updateTask(taskId: string, updates: Partial<VideoTask>): VideoTask | undefined {
-  const task = taskStore.get(taskId);
+  const store = getTaskStore();
+  const task = store.get(taskId);
   if (!task) return undefined;
   
   const updatedTask = {
@@ -45,31 +58,28 @@ export function updateTask(taskId: string, updates: Partial<VideoTask>): VideoTa
     ...updates,
     updatedAt: Date.now(),
   };
-  taskStore.set(taskId, updatedTask);
+  store.set(taskId, updatedTask);
+  console.log('UPDATE', `任务已更新: ${taskId}`, { status: updates.status });
   return updatedTask;
 }
 
 export function deleteTask(taskId: string): boolean {
-  return taskStore.delete(taskId);
+  return getTaskStore().delete(taskId);
 }
 
 export function getAllTasks(): VideoTask[] {
-  return Array.from(taskStore.values());
+  console.log('GET_ALL', `查询所有任务，当前数量: ${getTaskStore().size}`);
+  return Array.from(getTaskStore().values());
 }
 
 // 清理过期任务（超过1小时）
-export function cleanupOldTasks(): void {
-  const ONE_HOUR = 60 * 60 * 1000;
-  const now = Date.now();
+export function cleanExpiredTasks(): void {
+  const store = getTaskStore();
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
   
-  for (const [id, task] of taskStore.entries()) {
-    if (now - task.createdAt > ONE_HOUR) {
-      taskStore.delete(id);
+  for (const [taskId, task] of store.entries()) {
+    if (task.updatedAt < oneHourAgo) {
+      store.delete(taskId);
     }
   }
-}
-
-// 每小时清理一次
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanupOldTasks, 60 * 60 * 1000);
 }
