@@ -9,7 +9,7 @@ const SPEAKER_ID = 'S_Q3mBNb202';
 
 // 轮询配置
 const POLL_INTERVAL = 2000; // 毫秒
-const MAX_POLL_COUNT = 30;
+const MAX_POLL_COUNT = 60; // 最多等待120秒
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     console.log('开始配音生成，请求ID:', reqid, '文本:', text);
 
     // 1. 提交合成任务
+    const submitStartTime = Date.now();
     const submitResponse = await fetch(VOLC_BASE_URL, {
       method: 'POST',
       headers: {
@@ -52,7 +53,8 @@ export async function POST(request: NextRequest) {
     });
 
     const submitData = await submitResponse.json();
-    console.log('提交任务响应:', JSON.stringify(submitData));
+    const submitDuration = Date.now() - submitStartTime;
+    console.log('提交任务响应:', JSON.stringify(submitData), `耗时:${submitDuration}ms`);
 
     // 成功码是 3000
     if (submitData.code !== 3000) {
@@ -66,6 +68,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < MAX_POLL_COUNT; i++) {
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
 
+      const queryStartTime = Date.now();
       const queryResponse = await fetch(VOLC_BASE_URL, {
         method: 'POST',
         headers: {
@@ -93,12 +96,13 @@ export async function POST(request: NextRequest) {
       });
 
       const queryData = await queryResponse.json();
-      console.log(`轮询${i + 1}次: code=${queryData.code}, message=${queryData.message}`);
+      const queryDuration = Date.now() - queryStartTime;
+      console.log(`轮询${i + 1}次: code=${queryData.code}, message=${queryData.message}, 耗时:${queryDuration}ms`);
 
       // code = 1000 表示成功完成
-      if (queryData.code === 1000) {
+      if (queryData.code === 1000 && queryData.data) {
         const audioData = queryData.data;
-        console.log('获取到音频数据, 长度:', audioData?.length);
+        console.log('获取到音频数据(code=1000), 长度:', audioData?.length);
         return NextResponse.json({
           success: true,
           audioUrl: `data:audio/mp3;base64,${audioData}`,
@@ -106,9 +110,15 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // code = 3000 表示成功（查询到结果但还在处理）
-      if (queryData.code === 3000) {
-        continue;
+      // code = 3000 时也可能有音频数据（根据实际测试）
+      if (queryData.code === 3000 && queryData.data && queryData.data.length > 100) {
+        const audioData = queryData.data;
+        console.log('获取到音频数据(code=3000), 长度:', audioData?.length);
+        return NextResponse.json({
+          success: true,
+          audioUrl: `data:audio/mp3;base64,${audioData}`,
+          duration: queryData.addition?.duration,
+        });
       }
 
       // 其他错误码
