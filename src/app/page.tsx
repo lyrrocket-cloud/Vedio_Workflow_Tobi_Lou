@@ -721,17 +721,17 @@ export default function TransitionVideoGenerator() {
                     onValueChange={(value) => setSelectedModel(value as 'coze' | 'ark')} 
                     className="w-full"
                   >
-                    <TabsList className="grid w-full grid-cols-2 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+                    <TabsList className="grid w-full grid-cols-2 bg-black/20 backdrop-blur-sm border border-[#CEA472]/20 rounded-lg p-1">
                       <TabsTrigger 
                         value="coze" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
                       >
                         <Bot className="w-4 h-4 mr-2" />
                         Coze Seedance1.5 Pro
                       </TabsTrigger>
                       <TabsTrigger 
                         value="ark" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
                       >
                         <Server className="w-4 h-4 mr-2" />
                         Ark Seedance1.5 Pro
