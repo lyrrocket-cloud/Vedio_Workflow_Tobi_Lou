@@ -1069,167 +1069,160 @@ export default function TransitionVideoGenerator() {
           </TabsContent>
 
           {/* 配音生成Tab */}
-          <TabsContent value="voiceover" className="mt-0">
+          <TabsContent value="voiceover" className="space-y-6 mt-0">
+            {/* 第一栏：文本输入 */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                  <Mic className="w-5 h-5 text-[#CEA472]" />
-                  配音生成
+                  <FileText className="w-5 h-5 text-[#CEA472]" />
+                  文本输入
                 </CardTitle>
                 <CardDescription className="text-[#FFFFFF]/60">
-                  输入文本，使用 tobi_lou 声音生成配音
+                  输入要生成的配音内容
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Textarea
+                  value={voiceText}
+                  onChange={(e) => setVoiceText(e.target.value)}
+                  placeholder="输入要生成的配音内容..."
+                  className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
+                  rows={4}
+                />
+                <Button
+                  onClick={handleGenerateVoice}
+                  disabled={isGeneratingVoice || !voiceText.trim()}
+                  className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
+                >
+                  {isGeneratingVoice ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      正在生成...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      生成配音
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 第二栏：音色设置 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-[#CEA472]" />
+                  音色设置
+                </CardTitle>
+                <CardDescription className="text-[#FFFFFF]/60">
+                  选择音色和查看设置
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 音色信息 */}
+                <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <Mic className="w-6 h-6 text-[#CEA472]" />
+                    <div>
+                      <p className="text-[#FFFFFF] text-sm font-medium">tobi_lou 音色</p>
+                      <p className="text-[#FFFFFF]/50 text-xs mt-0.5">音色ID: S_Q3mBNb202</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 错误提示 */}
+                {voiceError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                    {voiceError}
+                  </div>
+                )}
+
+                {/* 生成结果预览 */}
+                {voiceResultUrl && (
+                  <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 space-y-3">
+                    <p className="text-[#FFFFFF]/80 text-sm font-medium">生成结果</p>
+                    <audio 
+                      src={voiceResultUrl} 
+                      controls 
+                      className="w-full"
+                    />
+                    <Button
+                      onClick={handleDownloadVoice}
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      下载
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 第三栏：任务监控 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[#CEA472]" />
+                  任务监控
+                </CardTitle>
+                <CardDescription className="text-[#FFFFFF]/60">
+                  查看配音生成任务记录
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* 三栏布局 */}
-                <div className="grid grid-cols-3 gap-4">
-                  
-                  {/* 第一栏：输入配音文本 */}
-                  <div className="space-y-4">
-                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[#CEA472]" />
-                      文本输入
-                    </h3>
-                    <Textarea
-                      value={voiceText}
-                      onChange={(e) => setVoiceText(e.target.value)}
-                      placeholder="输入要生成的配音内容..."
-                      className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none min-h-[200px]"
-                    />
-                    <Button
-                      onClick={handleGenerateVoice}
-                      disabled={isGeneratingVoice || !voiceText.trim()}
-                      className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
-                    >
-                      {isGeneratingVoice ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          正在生成...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          生成配音
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* 第二栏：音色和设置 */}
-                  <div className="space-y-4">
-                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
-                      <Settings className="w-4 h-4 text-[#CEA472]" />
-                      音色设置
-                    </h3>
-                    
-                    {/* 音色信息 */}
-                    <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <Mic className="w-6 h-6 text-[#CEA472]" />
-                        <div>
-                          <p className="text-[#FFFFFF] text-sm font-medium">tobi_lou 音色</p>
-                          <p className="text-[#FFFFFF]/50 text-xs mt-0.5">音色ID: S_Q3mBNb202</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 生成结果预览 */}
-                    {voiceResultUrl && (
-                      <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 space-y-3">
-                        <p className="text-[#FFFFFF]/80 text-sm font-medium">生成结果</p>
-                        <audio 
-                          src={voiceResultUrl} 
-                          controls 
-                          className="w-full"
-                        />
-                        <Button
-                          onClick={handleDownloadVoice}
-                          variant="outline"
-                          size="sm"
-                          className="w-full bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                {/* 任务历史 */}
+                {voiceHistory.length > 0 ? (
+                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {voiceHistory.map((item) => (
+                        <div 
+                          key={item.id}
+                          className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
                         >
-                          <Download className="w-4 h-4 mr-2" />
-                          下载
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* 错误提示 */}
-                    {voiceError && (
-                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs">
-                        {voiceError}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 第三栏：任务监控 */}
-                  <div className="space-y-4">
-                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-[#CEA472]" />
-                      任务监控
-                    </h3>
-                    
-                    {/* 错误提示（放在监控区域顶部） */}
-                    {voiceError && (
-                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs">
-                        {voiceError}
-                      </div>
-                    )}
-
-                    {/* 任务历史 */}
-                    {voiceHistory.length > 0 && (
-                      <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
-                        <div className="max-h-[300px] overflow-y-auto">
-                          {voiceHistory.map((item) => (
-                            <div 
-                              key={item.id}
-                              className="flex items-center gap-2 p-2 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
-                            >
-                              <Mic className="w-3 h-3 text-[#CEA472] shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[#FFFFFF] text-xs truncate">{item.text}</p>
-                                <p className="text-[#FFFFFF]/40 text-[10px]">{item.time}</p>
-                              </div>
-                              <audio 
-                                src={item.url} 
-                                controls 
-                                className="h-5 w-24 shrink-0"
-                                onPlay={(e) => {
-                                  const audios = document.querySelectorAll('audio');
-                                  audios.forEach(audio => {
-                                    if (audio !== e.currentTarget) {
-                                      audio.pause();
-                                    }
-                                  });
-                                }}
-                              />
-                              <button
-                                onClick={() => {
-                                  const link = document.createElement('a');
-                                  link.href = item.url;
-                                  link.download = `配音-${item.id}.mp3`;
-                                  link.click();
-                                }}
-                                className="p-1 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
-                                title="下载"
-                              >
-                                <Download className="w-3 h-3 text-[#CEA472]" />
-                              </button>
-                            </div>
-                          ))}
+                          <Mic className="w-4 h-4 text-[#CEA472] shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[#FFFFFF] text-sm truncate">{item.text}</p>
+                            <p className="text-[#FFFFFF]/40 text-xs mt-0.5">{item.time}</p>
+                          </div>
+                          <audio 
+                            src={item.url} 
+                            controls 
+                            className="h-6 w-32 shrink-0"
+                            onPlay={(e) => {
+                              const audios = document.querySelectorAll('audio');
+                              audios.forEach(audio => {
+                                if (audio !== e.currentTarget) {
+                                  audio.pause();
+                                }
+                              });
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = item.url;
+                              link.download = `配音-${item.id}.mp3`;
+                              link.click();
+                            }}
+                            className="p-1.5 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
+                            title="下载"
+                          >
+                            <Download className="w-4 h-4 text-[#CEA472]" />
+                          </button>
                         </div>
-                      </div>
-                    )}
-
-                    {/* 无任务时显示提示 */}
-                    {voiceHistory.length === 0 && !voiceError && (
-                      <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
-                        <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
-                        <p className="text-[#FFFFFF]/30 text-xs mt-1">生成配音后将显示在这里</p>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
+                    <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
+                    <p className="text-[#FFFFFF]/30 text-xs mt-1">生成配音后将显示在这里</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
