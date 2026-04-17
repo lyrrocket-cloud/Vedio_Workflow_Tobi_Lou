@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 火山引擎语音合成API配置
+// 火山引擎语音合成API配置 (V3版本)
 const VOLC_API_KEY = process.env.VOLC_API_KEY || 'be9ce267-c0d2-44b1-90f6-75964c4ec8fe';
-const VOLC_BASE_URL = 'https://openspeech.bytedance.com/api/v1/tts';
+const VOLC_BASE_URL = 'https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse';
 
 // 音色ID
 const VOICE_ID = 'S_Q3mBNb202';
-
-// 轮询等待时间（毫秒）
-const POLL_INTERVAL = 2000;
-// 最大轮询次数
-const MAX_POLL_COUNT = 15;
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,108 +15,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请提供要合成的文本' }, { status: 400 });
     }
 
-    // 生成唯一请求ID
-    const reqid = `${Date.now()}${Math.random().toString(36).substring(2, 10)}`;
+    // 生成唯一请求ID (UUID格式)
+    const requestId = crypto.randomUUID();
 
-    // 1. 提交任务
-    const submitResponse = await fetch(VOLC_BASE_URL, {
+    console.log('开始配音生成，请求ID:', requestId, '文本:', text);
+
+    // 使用SSE协议调用火山引擎TTS API
+    const response = await fetch(VOLC_BASE_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': VOLC_API_KEY,
+        'X-Api-Key': VOLC_API_KEY,
+        'X-Api-Request-Id': requestId,
+        'X-Api-Resource-Id': 'seed-icl-2.0',
       },
       body: JSON.stringify({
-        app: {
-          cluster: 'volcano_icl',
-        },
-        user: {
-          uid: '豆包语音',
-        },
-        audio: {
-          voice_type: VOICE_ID,
-          encoding: 'mp3',
-          speed_ratio: 1.0,
-        },
-        request: {
-          reqid: reqid,
+        model: 'chat',
+        voice_type: VOICE_ID,
+        input: {
           text: text,
-          operation: 'submit',
+        },
+        audio_setting: {
+          sample_rate: 24000,
+          encoding: 'mp3',
         },
       }),
     });
 
-    const submitData = await submitResponse.json();
-    console.log('提交任务响应:', submitData);
-
-    if (submitData.code !== 3000) {
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('火山引擎API错误:', response.status, errorText);
       return NextResponse.json(
-        { error: submitData.message || '提交任务失败' },
-        { status: 400 }
+        { error: `API调用失败: ${response.status}` },
+        { status: response.status }
       );
     }
 
-    // 2. 轮询查询结果
-    for (let i = 0; i < MAX_POLL_COUNT; i++) {
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+    // SSE响应需要处理流式数据
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return NextResponse.json({ error: '无法读取响应' }, { status: 500 });
+    }
 
-      const queryResponse = await fetch(VOLC_BASE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': VOLC_API_KEY,
-        },
-        body: JSON.stringify({
-          app: {
-            cluster: 'volcano_icl',
-          },
-          user: {
-            uid: '豆包语音',
-          },
-          audio: {
-            voice_type: VOICE_ID,
-            encoding: 'mp3',
-            speed_ratio: 1.0,
-          },
-          request: {
-            reqid: reqid,
-            text: text,
-            operation: 'query',
-          },
-        }),
-      });
+    const chunks: Uint8Array[] = [];
+    const decoder = new TextDecoder();
 
-      const queryData = await queryResponse.json();
-      console.log(`轮询${i + 1}次:`, queryData.code, queryData.message);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
 
-      // code = 1000 表示成功完成
-      if (queryData.code === 1000) {
-        // 返回base64音频数据
-        const audioData = queryData.data;
-        return NextResponse.json({
-          success: true,
-          audioUrl: `data:audio/mp3;base64,${audioData}`,
-          duration: queryData.addition?.duration,
-        });
-      }
+    // 合并所有数据块
+    const combined = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+    let position = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, position);
+      position += chunk.length;
+    }
 
-      // code = 3000 表示还在处理中，继续轮询
-      if (queryData.code === 3000) {
-        continue;
-      }
+    const textContent = decoder.decode(combined);
+    console.log('SSE响应内容长度:', textContent.length);
 
-      // 其他错误码
-      if (queryData.code !== 1000) {
-        return NextResponse.json(
-          { error: queryData.message || '查询失败' },
-          { status: 400 }
-        );
+    // 解析SSE数据
+    const audioDataMatches = textContent.match(/data:\s*(.+?)(?:\n\n|\n$)/gs);
+    
+    if (audioDataMatches && audioDataMatches.length > 0) {
+      // 提取最后一个非空的data行
+      for (const match of audioDataMatches) {
+        const data = match.replace(/^data:\s*/, '').trim();
+        if (data && data !== '[DONE]') {
+          console.log('提取到音频数据,长度:', data.length);
+          // 返回base64音频数据
+          return NextResponse.json({
+            success: true,
+            audioUrl: `data:audio/mp3;base64,${data}`,
+          });
+        }
       }
     }
 
-    return NextResponse.json(
-      { error: '生成超时，请重试' },
-      { status: 500 }
-    );
+    // 如果没有找到音频数据，尝试直接返回整个响应作为base64
+    const base64Data = textContent.trim();
+    if (base64Data.length > 100) {
+      return NextResponse.json({
+        success: true,
+        audioUrl: `data:audio/mp3;base64,${base64Data}`,
+      });
+    }
+
+    console.error('未找到音频数据，响应内容:', textContent.substring(0, 500));
+    return NextResponse.json({ error: '未获取到音频数据' }, { status: 500 });
 
   } catch (error) {
     console.error('配音生成错误:', error);
