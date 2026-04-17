@@ -64,6 +64,14 @@ export default function TransitionVideoGenerator() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
+  
+  // 配音生成状态
+  const [voiceText, setVoiceText] = useState<string>('');
+  const [voiceRefAudio, setVoiceRefAudio] = useState<string>('');
+  const [voiceRefAudioPreview, setVoiceRefAudioPreview] = useState<string>('');
+  const [voiceResultUrl, setVoiceResultUrl] = useState<string>('');
+  const [isGeneratingVoice, setIsGeneratingVoice] = useState<boolean>(false);
+  const [voiceError, setVoiceError] = useState<string>('');
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
   const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(true);
@@ -77,6 +85,7 @@ export default function TransitionVideoGenerator() {
 
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
+  const voiceRefInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 初始化任务监控 - 自动开始轮询（仅在异步模式下）
@@ -112,6 +121,106 @@ export default function TransitionVideoGenerator() {
       reader.readAsDataURL(file);
     }
   }, []);
+
+  // 处理参考音频上传
+  const handleAudioUpload = useCallback((
+    file: File,
+    setFile: (file: File | null) => void,
+    setPreview: (preview: string) => void
+  ) => {
+    if (file && file.type.startsWith('audio/')) {
+      setFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }, []);
+
+  // 上传参考音频到对象存储
+  const uploadVoiceRefAudio = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'audio');
+
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || '音频上传失败');
+    }
+    return data.url;
+  };
+
+  // 生成配音
+  const handleGenerateVoice = async () => {
+    if (!voiceText.trim()) {
+      setVoiceError('请输入要生成的文本');
+      return;
+    }
+    if (!voiceRefAudio) {
+      setVoiceError('请上传参考音频');
+      return;
+    }
+
+    setIsGeneratingVoice(true);
+    setVoiceError('');
+    setVoiceResultUrl('');
+
+    try {
+      // 上传参考音频
+      const audioUrl = await uploadVoiceRefAudio(voiceRefAudio);
+
+      // 调用配音生成API
+      const response = await fetch('/api/voice-clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: voiceText,
+          audioUrl: audioUrl,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '配音生成失败');
+      }
+
+      setVoiceResultUrl(data.audioUrl);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '配音生成失败';
+      setVoiceError(errorMessage);
+      console.error('配音生成错误:', err);
+    } finally {
+      setIsGeneratingVoice(false);
+    }
+  };
+
+  // 下载配音
+  const handleDownloadVoice = async () => {
+    if (!voiceResultUrl) return;
+
+    try {
+      const response = await fetch(`/api/download-video?url=${encodeURIComponent(voiceResultUrl)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '下载失败');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `配音-${Date.now()}.mp3`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('下载失败:', err);
+    }
+  };
 
   const handleDrop = useCallback((
     e: React.DragEvent,
@@ -1012,14 +1121,122 @@ export default function TransitionVideoGenerator() {
                   配音生成
                 </CardTitle>
                 <CardDescription className="text-[#FFFFFF]/60">
-                  输入文本生成配音
+                  上传参考音频，输入文本，生成克隆声音的配音
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-16 text-[#FFFFFF]/50">
-                  <p className="text-2xl font-semibold text-[#CEA472]">敬请期待</p>
-                  <p className="text-sm mt-2">配音生成功能即将上线</p>
+              <CardContent className="space-y-6">
+                {/* 参考音频上传 */}
+                <div className="space-y-2">
+                  <Label className="text-[#FFFFFF]/80">参考音频</Label>
+                  <p className="text-xs text-[#FFFFFF]/50">上传30秒内的音频样本，用于复刻声音特征</p>
+                  <div
+                    className={`relative rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
+                      voiceRefAudioPreview 
+                        ? 'border-[#CEA472] bg-black/60' 
+                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
+                    }`}
+                    onClick={() => voiceRefInputRef.current?.click()}
+                  >
+                    {voiceRefAudioPreview ? (
+                      <div className="flex items-center gap-3 p-4">
+                        <Mic className="w-8 h-8 text-[#CEA472]" />
+                        <div className="flex-1">
+                          <p className="text-[#FFFFFF] text-sm font-medium">参考音频已上传</p>
+                          <p className="text-[#FFFFFF]/50 text-xs mt-1">点击重新上传</p>
+                        </div>
+                        <audio 
+                          src={voiceRefAudioPreview} 
+                          controls 
+                          className="h-8"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-[#FFFFFF]/50">
+                        <Upload className="w-8 h-8 mb-2" />
+                        <span className="text-sm font-medium">点击上传参考音频</span>
+                        <span className="text-xs mt-1">支持 MP3、WAV、M4A 格式</span>
+                      </div>
+                    )}
+                    <input
+                      ref={voiceRefInputRef}
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAudioUpload(file, setVoiceRefAudio, setVoiceRefAudioPreview);
+                      }}
+                    />
+                  </div>
                 </div>
+
+                {/* 文本输入 */}
+                <div className="space-y-2">
+                  <Label className="text-[#FFFFFF]/80">配音文本</Label>
+                  <Textarea
+                    value={voiceText}
+                    onChange={(e) => setVoiceText(e.target.value)}
+                    placeholder="输入要生成的配音内容..."
+                    className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
+                    rows={4}
+                  />
+                </div>
+
+                {/* 生成按钮 */}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleGenerateVoice}
+                    disabled={isGeneratingVoice || !voiceText || !voiceRefAudio}
+                    className="flex-1 h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
+                  >
+                    {isGeneratingVoice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        正在生成...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        生成配音
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* 错误提示 */}
+                {voiceError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
+                    {voiceError}
+                  </div>
+                )}
+
+                {/* 生成结果 */}
+                {voiceResultUrl && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[#FFFFFF]/80">生成结果</Label>
+                    </div>
+                    <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4">
+                      <audio 
+                        src={voiceResultUrl} 
+                        controls 
+                        className="w-full"
+                      />
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          onClick={handleDownloadVoice}
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          下载
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
