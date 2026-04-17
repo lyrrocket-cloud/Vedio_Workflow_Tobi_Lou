@@ -679,10 +679,10 @@ export default function TransitionVideoGenerator() {
                 <div className="mt-4">
                   <Button
                     onClick={handleGenerate}
-                    disabled={!prompt || isVideoGenerating}
+                    disabled={!prompt || isGenerating}
                     className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
-                    {isVideoGenerating ? (
+                    {isGenerating ? (
                       <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                         生成中...
