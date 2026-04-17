@@ -678,7 +678,7 @@ export default function TransitionVideoGenerator() {
                 {/* 生成视频按钮 */}
                 <div className="mt-4">
                   <Button
-                    onClick={handleGenerateVideo}
+                    onClick={handleGenerate}
                     disabled={!prompt || isVideoGenerating}
                     className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
