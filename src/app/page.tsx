@@ -863,7 +863,7 @@ export default function TransitionVideoGenerator() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
-                        onClick={() => {
+                        onClick={(e) => {
                           setMonitorLoading(true);
                           fetchMonitorTasks().finally(() => setMonitorLoading(false));
                         }}
@@ -1163,7 +1163,7 @@ export default function TransitionVideoGenerator() {
                           />
                           <button
                             id={`voice-btn-${item.id}`}
-                            onClick={() => {
+                            onClick={(e) => {
                               const audio = document.getElementById(`voice-audio-${item.id}`) as HTMLAudioElement;
                               if (audio) {
                                 // 停止其他音频
@@ -1172,10 +1172,10 @@ export default function TransitionVideoGenerator() {
                                 });
                                 if (audio.paused) {
                                   audio.play();
-                                  event.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"></rect><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"></rect></svg>';
+                                  e.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"></rect><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"></rect></svg>';
                                 } else {
                                   audio.pause();
-                                  event.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
+                                  e.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
                                 }
                               }
                             }}
@@ -1187,7 +1187,7 @@ export default function TransitionVideoGenerator() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
                               const link = document.createElement('a');
                               link.href = item.url;
                               link.download = `配音-${item.id}.mp3`;
