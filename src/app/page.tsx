@@ -67,11 +67,10 @@ export default function TransitionVideoGenerator() {
   
   // 配音生成状态
   const [voiceText, setVoiceText] = useState<string>('');
-  const [voiceRefAudio, setVoiceRefAudio] = useState<string>('');
-  const [voiceRefAudioPreview, setVoiceRefAudioPreview] = useState<string>('');
   const [voiceResultUrl, setVoiceResultUrl] = useState<string>('');
   const [isGeneratingVoice, setIsGeneratingVoice] = useState<boolean>(false);
   const [voiceError, setVoiceError] = useState<string>('');
+  const [voiceHistory, setVoiceHistory] = useState<Array<{id: string; text: string; url: string; time: string}>>([]);
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
   const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(true);
@@ -85,7 +84,6 @@ export default function TransitionVideoGenerator() {
 
   const firstFrameInputRef = useRef<HTMLInputElement>(null);
   const lastFrameInputRef = useRef<HTMLInputElement>(null);
-  const voiceRefInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 初始化任务监控 - 自动开始轮询（仅在异步模式下）
@@ -122,40 +120,6 @@ export default function TransitionVideoGenerator() {
     }
   }, []);
 
-  // 处理参考音频上传
-  const handleAudioUpload = useCallback((
-    file: File,
-    setFile: (file: File | null) => void,
-    setPreview: (preview: string) => void
-  ) => {
-    if (file && file.type.startsWith('audio/')) {
-      setFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  }, []);
-
-  // 上传参考音频到对象存储
-  const uploadVoiceRefAudio = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', 'audio');
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || '音频上传失败');
-    }
-    return data.url;
-  };
-
   // 生成配音
   const handleGenerateVoice = async () => {
     if (!voiceText.trim()) {
@@ -166,6 +130,9 @@ export default function TransitionVideoGenerator() {
     setIsGeneratingVoice(true);
     setVoiceError('');
     setVoiceResultUrl('');
+
+    // 生成任务ID
+    const taskId = `voice_${Date.now()}`;
 
     try {
       // 调用配音生成API
@@ -181,6 +148,14 @@ export default function TransitionVideoGenerator() {
       if (!response.ok) {
         throw new Error(data.error || '配音生成失败');
       }
+
+      // 添加到历史记录
+      setVoiceHistory(prev => [{
+        id: taskId,
+        text: voiceText.substring(0, 20) + (voiceText.length > 20 ? '...' : ''),
+        url: data.audioUrl,
+        time: new Date().toLocaleTimeString(),
+      }, ...prev].slice(0, 10)); // 保留最近10条
 
       setVoiceResultUrl(data.audioUrl);
     } catch (err) {
@@ -1188,6 +1163,46 @@ export default function TransitionVideoGenerator() {
                           <Download className="w-4 h-4 mr-2" />
                           下载
                         </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 任务历史 */}
+                {voiceHistory.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[#FFFFFF]/80">任务历史</Label>
+                      <span className="text-xs text-[#FFFFFF]/50">{voiceHistory.length} 条记录</span>
+                    </div>
+                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {voiceHistory.map((item) => (
+                          <div 
+                            key={item.id}
+                            className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
+                          >
+                            <Mic className="w-4 h-4 text-[#CEA472] shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[#FFFFFF] text-sm truncate">{item.text}</p>
+                              <p className="text-[#FFFFFF]/40 text-xs mt-0.5">{item.time}</p>
+                            </div>
+                            <audio 
+                              src={item.url} 
+                              controls 
+                              className="h-6 w-32 shrink-0"
+                              onPlay={(e) => {
+                                // 停止其他正在播放的音频
+                                const audios = document.querySelectorAll('audio');
+                                audios.forEach(audio => {
+                                  if (audio !== e.currentTarget) {
+                                    audio.pause();
+                                  }
+                                });
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
