@@ -4,16 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 const VOLC_API_KEY = process.env.VOLC_API_KEY || 'be9ce267-c0d2-44b1-90f6-75964c4ec8fe';
 const VOLC_BASE_URL = 'https://openspeech.bytedance.com/api/v3/voice';
 
+// 音色ID
+const VOICE_ID = 'S_Q3mBNb202';
+
 export async function POST(request: NextRequest) {
   try {
-    const { text, audioUrl } = await request.json();
+    const { text } = await request.json();
 
     if (!text) {
       return NextResponse.json({ error: '请提供要合成的文本' }, { status: 400 });
-    }
-
-    if (!audioUrl) {
-      return NextResponse.json({ error: '请上传参考音频用于声音复刻' }, { status: 400 });
     }
 
     // 调用火山引擎声音复刻API
@@ -27,10 +26,9 @@ export async function POST(request: NextRequest) {
         model: 'chat',
         input: {
           text: text,
-          audio_url: audioUrl,
         },
         voice_setting: {
-          voice_id: 'copycat',
+          voice_id: VOICE_ID,
           speed_ratio: 1.0,
           volume_ratio: 1.0,
           pitch_ratio: 1.0,

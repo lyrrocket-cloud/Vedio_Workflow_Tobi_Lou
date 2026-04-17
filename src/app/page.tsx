@@ -162,26 +162,18 @@ export default function TransitionVideoGenerator() {
       setVoiceError('请输入要生成的文本');
       return;
     }
-    if (!voiceRefAudio) {
-      setVoiceError('请上传参考音频');
-      return;
-    }
 
     setIsGeneratingVoice(true);
     setVoiceError('');
     setVoiceResultUrl('');
 
     try {
-      // 上传参考音频
-      const audioUrl = await uploadVoiceRefAudio(voiceRefAudio);
-
       // 调用配音生成API
       const response = await fetch('/api/voice-clone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: voiceText,
-          audioUrl: audioUrl,
         }),
       });
 
@@ -1121,53 +1113,16 @@ export default function TransitionVideoGenerator() {
                   配音生成
                 </CardTitle>
                 <CardDescription className="text-[#FFFFFF]/60">
-                  上传参考音频，输入文本，生成克隆声音的配音
+                  输入文本，使用 tobi_lou 声音生成配音
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* 参考音频上传 */}
-                <div className="space-y-2">
-                  <Label className="text-[#FFFFFF]/80">参考音频</Label>
-                  <p className="text-xs text-[#FFFFFF]/50">上传30秒内的音频样本，用于复刻声音特征</p>
-                  <div
-                    className={`relative rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
-                      voiceRefAudioPreview 
-                        ? 'border-[#CEA472] bg-black/60' 
-                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
-                    }`}
-                    onClick={() => voiceRefInputRef.current?.click()}
-                  >
-                    {voiceRefAudioPreview ? (
-                      <div className="flex items-center gap-3 p-4">
-                        <Mic className="w-8 h-8 text-[#CEA472]" />
-                        <div className="flex-1">
-                          <p className="text-[#FFFFFF] text-sm font-medium">参考音频已上传</p>
-                          <p className="text-[#FFFFFF]/50 text-xs mt-1">点击重新上传</p>
-                        </div>
-                        <audio 
-                          src={voiceRefAudioPreview} 
-                          controls 
-                          className="h-8"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-8 text-[#FFFFFF]/50">
-                        <Upload className="w-8 h-8 mb-2" />
-                        <span className="text-sm font-medium">点击上传参考音频</span>
-                        <span className="text-xs mt-1">支持 MP3、WAV、M4A 格式</span>
-                      </div>
-                    )}
-                    <input
-                      ref={voiceRefInputRef}
-                      type="file"
-                      accept="audio/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleAudioUpload(file, setVoiceRefAudio, setVoiceRefAudioPreview);
-                      }}
-                    />
+                {/* 音色信息 */}
+                <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 flex items-center gap-3">
+                  <Mic className="w-6 h-6 text-[#CEA472]" />
+                  <div>
+                    <p className="text-[#FFFFFF] text-sm font-medium">tobi_lou 音色</p>
+                    <p className="text-[#FFFFFF]/50 text-xs mt-0.5">音色ID: S_Q3mBNb202</p>
                   </div>
                 </div>
 
@@ -1187,7 +1142,7 @@ export default function TransitionVideoGenerator() {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleGenerateVoice}
-                    disabled={isGeneratingVoice || !voiceText || !voiceRefAudio}
+                    disabled={isGeneratingVoice || !voiceText.trim()}
                     className="flex-1 h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
                     {isGeneratingVoice ? (
