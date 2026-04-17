@@ -60,7 +60,7 @@ export default function TransitionVideoGenerator() {
   const [mockMode, setMockMode] = useState<boolean>(false);
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
   const [removeWatermark, setRemoveWatermark] = useState<boolean>(true); // 默认开启去水印
-  const [selectedModel, setSelectedModel] = useState<'coze' | 'ark'>('coze'); // 模型选择
+  const [selectedModel, setSelectedModel] = useState<'coze' | 'ark'>('ark'); // 模型选择
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -727,22 +727,17 @@ export default function TransitionVideoGenerator() {
                         className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
                       >
                         <Bot className="w-4 h-4 mr-2" />
-                        Coze (doubao)
+                        Coze Seedance1.5 Pro
                       </TabsTrigger>
                       <TabsTrigger 
                         value="ark" 
                         className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
                       >
                         <Server className="w-4 h-4 mr-2" />
-                        火山方舟 Ark
+                        Ark Seedance1.5 Pro
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
-                  <p className="text-xs text-[#FFFFFF]/50">
-                    {selectedModel === 'coze' 
-                      ? 'Coze模型：需Coze API权限，支持异步模式' 
-                      : '火山方舟Ark：需ARK_API_KEY配置，同步等待生成'}
-                  </p>
                 </div>
 
                 {/* Mock Mode Toggle */}
