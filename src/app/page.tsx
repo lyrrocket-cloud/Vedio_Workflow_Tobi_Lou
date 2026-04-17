@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2 } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UploadResponse {
@@ -664,6 +664,37 @@ export default function TransitionVideoGenerator() {
                     </div>
                   </div>
                 )}
+
+                {/* 转场描述输入框 */}
+                <div className="mt-4">
+                  <Textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="输入转场描述，例如：人物从左边走向右边，背景逐渐变化"
+                    className="min-h-[80px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
+                  />
+                </div>
+
+                {/* 生成视频按钮 */}
+                <div className="mt-4">
+                  <Button
+                    onClick={handleGenerateVideo}
+                    disabled={!prompt || isVideoGenerating}
+                    className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
+                  >
+                    {isVideoGenerating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5 mr-2" />
+                        生成视频
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -688,18 +719,6 @@ export default function TransitionVideoGenerator() {
               </CardHeader>
               {!settingsCollapsed && (
               <CardContent className="space-y-6">
-                {/* Prompt */}
-                <div className="space-y-2">
-                  <Label className="text-[#FFFFFF]/80">转场描述</Label>
-                  <Textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="描述转场效果..."
-                    className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
-                    rows={3}
-                  />
-                </div>
-
                 {/* Duration */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -826,29 +845,6 @@ export default function TransitionVideoGenerator() {
               </CardContent>
               )}
             </Card>
-
-            {/* Generate Button */}
-            <div className="space-y-3">
-              <div className="flex gap-3">
-                <Button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || !firstFrame || !lastFrame}
-                  className="flex-1 h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      正在生成...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4 mr-2" />
-                      生成转场视频
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
 
             {/* Error Message */}
             {error && (
@@ -1084,134 +1080,156 @@ export default function TransitionVideoGenerator() {
                   输入文本，使用 tobi_lou 声音生成配音
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* 音色信息 */}
-                <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 flex items-center gap-3">
-                  <Mic className="w-6 h-6 text-[#CEA472]" />
-                  <div>
-                    <p className="text-[#FFFFFF] text-sm font-medium">tobi_lou 音色</p>
-                    <p className="text-[#FFFFFF]/50 text-xs mt-0.5">音色ID: S_Q3mBNb202</p>
+              <CardContent>
+                {/* 三栏布局 */}
+                <div className="grid grid-cols-3 gap-4">
+                  
+                  {/* 第一栏：输入配音文本 */}
+                  <div className="space-y-4">
+                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-[#CEA472]" />
+                      文本输入
+                    </h3>
+                    <Textarea
+                      value={voiceText}
+                      onChange={(e) => setVoiceText(e.target.value)}
+                      placeholder="输入要生成的配音内容..."
+                      className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none min-h-[200px]"
+                    />
+                    <Button
+                      onClick={handleGenerateVoice}
+                      disabled={isGeneratingVoice || !voiceText.trim()}
+                      className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
+                    >
+                      {isGeneratingVoice ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          正在生成...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          生成配音
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </div>
 
-                {/* 文本输入 */}
-                <div className="space-y-2">
-                  <Label className="text-[#FFFFFF]/80">配音文本</Label>
-                  <Textarea
-                    value={voiceText}
-                    onChange={(e) => setVoiceText(e.target.value)}
-                    placeholder="输入要生成的配音内容..."
-                    className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
-                    rows={4}
-                  />
-                </div>
-
-                {/* 生成按钮 */}
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleGenerateVoice}
-                    disabled={isGeneratingVoice || !voiceText.trim()}
-                    className="flex-1 h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
-                  >
-                    {isGeneratingVoice ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        正在生成...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        生成配音
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {/* 错误提示 */}
-                {voiceError && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-red-400 text-sm">
-                    {voiceError}
-                  </div>
-                )}
-
-                {/* 生成结果 */}
-                {voiceResultUrl && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[#FFFFFF]/80">生成结果</Label>
-                    </div>
+                  {/* 第二栏：音色和设置 */}
+                  <div className="space-y-4">
+                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-[#CEA472]" />
+                      音色设置
+                    </h3>
+                    
+                    {/* 音色信息 */}
                     <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4">
-                      <audio 
-                        src={voiceResultUrl} 
-                        controls 
-                        className="w-full"
-                      />
-                      <div className="flex gap-2 mt-3">
+                      <div className="flex items-center gap-3">
+                        <Mic className="w-6 h-6 text-[#CEA472]" />
+                        <div>
+                          <p className="text-[#FFFFFF] text-sm font-medium">tobi_lou 音色</p>
+                          <p className="text-[#FFFFFF]/50 text-xs mt-0.5">音色ID: S_Q3mBNb202</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 生成结果预览 */}
+                    {voiceResultUrl && (
+                      <div className="bg-black/40 border border-[#CEA472]/30 rounded-xl p-4 space-y-3">
+                        <p className="text-[#FFFFFF]/80 text-sm font-medium">生成结果</p>
+                        <audio 
+                          src={voiceResultUrl} 
+                          controls 
+                          className="w-full"
+                        />
                         <Button
                           onClick={handleDownloadVoice}
                           variant="outline"
                           size="sm"
-                          className="flex-1 bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
+                          className="w-full bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
                         >
                           <Download className="w-4 h-4 mr-2" />
                           下载
                         </Button>
                       </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
-                {/* 任务历史 */}
-                {voiceHistory.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-[#FFFFFF]/80">任务历史</Label>
-                      <span className="text-xs text-[#FFFFFF]/50">{voiceHistory.length} 条记录</span>
-                    </div>
-                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
-                      <div className="max-h-[200px] overflow-y-auto">
-                        {voiceHistory.map((item) => (
-                          <div 
-                            key={item.id}
-                            className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
-                          >
-                            <Mic className="w-4 h-4 text-[#CEA472] shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#FFFFFF] text-sm truncate">{item.text}</p>
-                              <p className="text-[#FFFFFF]/40 text-xs mt-0.5">{item.time}</p>
-                            </div>
-                            <audio 
-                              src={item.url} 
-                              controls 
-                              className="h-6 w-32 shrink-0"
-                              onPlay={(e) => {
-                                // 停止其他正在播放的音频
-                                const audios = document.querySelectorAll('audio');
-                                audios.forEach(audio => {
-                                  if (audio !== e.currentTarget) {
-                                    audio.pause();
-                                  }
-                                });
-                              }}
-                            />
-                            <button
-                              onClick={() => {
-                                const link = document.createElement('a');
-                                link.href = item.url;
-                                link.download = `配音-${item.id}.mp3`;
-                                link.click();
-                              }}
-                              className="p-1.5 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
-                              title="下载"
-                            >
-                              <Download className="w-4 h-4 text-[#CEA472]" />
-                            </button>
-                          </div>
-                        ))}
+                    {/* 错误提示 */}
+                    {voiceError && (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs">
+                        {voiceError}
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
+
+                  {/* 第三栏：任务监控 */}
+                  <div className="space-y-4">
+                    <h3 className="text-[#FFFFFF] font-medium flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-[#CEA472]" />
+                      任务监控
+                    </h3>
+                    
+                    {/* 错误提示（放在监控区域顶部） */}
+                    {voiceError && (
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-xs">
+                        {voiceError}
+                      </div>
+                    )}
+
+                    {/* 任务历史 */}
+                    {voiceHistory.length > 0 && (
+                      <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
+                        <div className="max-h-[300px] overflow-y-auto">
+                          {voiceHistory.map((item) => (
+                            <div 
+                              key={item.id}
+                              className="flex items-center gap-2 p-2 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
+                            >
+                              <Mic className="w-3 h-3 text-[#CEA472] shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[#FFFFFF] text-xs truncate">{item.text}</p>
+                                <p className="text-[#FFFFFF]/40 text-[10px]">{item.time}</p>
+                              </div>
+                              <audio 
+                                src={item.url} 
+                                controls 
+                                className="h-5 w-24 shrink-0"
+                                onPlay={(e) => {
+                                  const audios = document.querySelectorAll('audio');
+                                  audios.forEach(audio => {
+                                    if (audio !== e.currentTarget) {
+                                      audio.pause();
+                                    }
+                                  });
+                                }}
+                              />
+                              <button
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = item.url;
+                                  link.download = `配音-${item.id}.mp3`;
+                                  link.click();
+                                }}
+                                className="p-1 hover:bg-[#CEA472]/20 rounded transition-colors shrink-0"
+                                title="下载"
+                              >
+                                <Download className="w-3 h-3 text-[#CEA472]" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 无任务时显示提示 */}
+                    {voiceHistory.length === 0 && !voiceError && (
+                      <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
+                        <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
+                        <p className="text-[#FFFFFF]/30 text-xs mt-1">生成配音后将显示在这里</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

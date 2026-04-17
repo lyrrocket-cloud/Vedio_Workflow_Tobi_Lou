@@ -3,7 +3,7 @@ import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '视频生成器',
+  title: '视频工作流',
   description:
     '上传首帧和尾帧图片，AI智能生成流畅的转场视频',
   keywords: [
