@@ -59,7 +59,7 @@ export default function TransitionVideoGenerator() {
   const [generateAudio, setGenerateAudio] = useState<boolean>(false); // 默认静音
   const [mockMode, setMockMode] = useState<boolean>(false);
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
-  const [removeWatermark, setRemoveWatermark] = useState<boolean>(true); // 默认开启去水印
+
   const [selectedModel, setSelectedModel] = useState<'coze' | 'ark'>('ark'); // 模型选择
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -779,25 +779,6 @@ export default function TransitionVideoGenerator() {
                   <Switch
                     checked={generateAudio}
                     onCheckedChange={setGenerateAudio}
-                  />
-                </div>
-
-                {/* Remove Watermark Toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-[#FFFFFF]/80 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-[#CEA472]" />
-                      去水印
-                    </Label>
-                    <p className="text-xs text-[#FFFFFF]/50 mt-1">
-                      {removeWatermark 
-                        ? '已开启：生成视频不包含水印' 
-                        : '已关闭：生成视频可能包含水印'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={removeWatermark}
-                    onCheckedChange={setRemoveWatermark}
                   />
                 </div>
 
