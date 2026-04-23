@@ -578,9 +578,6 @@ export default function TransitionVideoGenerator() {
                   <ImageIcon className="w-5 h-5 text-[#CEA472]" />
                   帧图片上传
                 </CardTitle>
-                <CardDescription className="text-[#FFFFFF]/60">
-                  上传首帧和结束帧图片（可选）
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
@@ -1036,9 +1033,6 @@ export default function TransitionVideoGenerator() {
                   <FileText className="w-5 h-5 text-[#CEA472]" />
                   文本输入
                 </CardTitle>
-                <CardDescription className="text-[#FFFFFF]/60">
-                  输入要生成的配音内容
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Textarea
@@ -1075,9 +1069,6 @@ export default function TransitionVideoGenerator() {
                   <Settings className="w-5 h-5 text-[#CEA472]" />
                   音色设置
                 </CardTitle>
-                <CardDescription className="text-[#FFFFFF]/60">
-                  选择音色和查看设置
-                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* 音色信息 */}
@@ -1107,9 +1098,6 @@ export default function TransitionVideoGenerator() {
                   <Activity className="w-5 h-5 text-[#CEA472]" />
                   任务监控
                 </CardTitle>
-                <CardDescription className="text-[#FFFFFF]/60">
-                  查看配音生成任务记录
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 {/* 任务历史 */}
