@@ -72,7 +72,7 @@ export default function TransitionVideoGenerator() {
   const [voiceHistory, setVoiceHistory] = useState<Array<{id: string; text: string; url: string; time: string}>>([]);
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
-  const [settingsCollapsed, setSettingsCollapsed] = useState<boolean>(true);
+
 
   // Monitor state - 常驻底部显示
   const [monitorTasks, setMonitorTasks] = useState<MonitorTask[]>([]);
@@ -704,23 +704,11 @@ export default function TransitionVideoGenerator() {
             {/* Settings Section */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-[#CEA472]" />
-                    生成设置
-                  </CardTitle>
-                  <Button
-                    onClick={() => setSettingsCollapsed(!settingsCollapsed)}
-                    variant="outline"
-                    size="icon"
-                    className="bg-black/40 border-[#CEA472]/30 hover:bg-[#CEA472]/20 hover:border-[#CEA472]/50"
-                    title={settingsCollapsed ? '展开' : '收起'}
-                  >
-                    {settingsCollapsed ? <ChevronDown className="w-4 h-4 text-[#CEA472]" /> : <ChevronUp className="w-4 h-4 text-[#CEA472]" />}
-                  </Button>
-                </div>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-[#CEA472]" />
+                  生成设置
+                </CardTitle>
               </CardHeader>
-              {!settingsCollapsed && (
               <CardContent className="space-y-6">
                 {/* Duration */}
                 <div className="space-y-3">
@@ -815,7 +803,6 @@ export default function TransitionVideoGenerator() {
                   />
                 </div>
               </CardContent>
-              )}
             </Card>
 
             {/* Error Message */}
