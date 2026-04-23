@@ -239,7 +239,7 @@ export default function TransitionVideoGenerator() {
   };
 
   // 异步模式生成视频
-  const handleGenerateAsync = async (firstFrameUrl: string, lastFrameUrl: string) => {
+  const handleGenerateAsync = async (firstFrameUrl: string | undefined, lastFrameUrl: string | undefined) => {
     // 提交任务
     const submitResponse = await fetch('/api/generate-video-async', {
       method: 'POST',
@@ -309,8 +309,9 @@ export default function TransitionVideoGenerator() {
   };
 
   const handleGenerate = async () => {
-    if (!firstFrame || !lastFrame) {
-      setError('请上传首帧和尾帧图片');
+    // 检查是否至少有一个帧图片或提示词
+    if (!firstFrame && !lastFrame && !prompt.trim()) {
+      setError('请上传首帧/结束帧图片或输入提示词');
       return;
     }
 
@@ -323,16 +324,36 @@ export default function TransitionVideoGenerator() {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Upload both images
-      const [firstFrameUrl, lastFrameUrl] = await Promise.all([
-        uploadImage(firstFrame),
-        uploadImage(lastFrame),
-      ]);
+      let firstFrameUrl: string | undefined;
+      let lastFrameUrl: string | undefined;
+
+      // 如果有首帧则上传
+      if (firstFrame) {
+        firstFrameUrl = await uploadImage(firstFrame);
+      }
+
+      // 如果有结束帧则上传
+      if (lastFrame) {
+        lastFrameUrl = await uploadImage(lastFrame);
+      }
+
+      // 构建动态提示词
+      let finalPrompt = prompt;
+      if (firstFrameUrl && lastFrameUrl) {
+        // 有首帧和结束帧：使用默认提示词逻辑
+        finalPrompt = `视频必须严格从首帧图片开始，平滑过渡到结束帧图片结束。确保视频的第一帧与首帧图片完全相同，最后一帧与结束帧图片完全相同，中间过程自然流畅地过渡变化。${prompt}`;
+      } else if (firstFrameUrl) {
+        // 只有首帧
+        finalPrompt = `视频必须从首帧图片开始生成，第一帧必须与首帧图片完全相同。${prompt}`;
+      } else if (lastFrameUrl) {
+        // 只有结束帧
+        finalPrompt = `视频必须平滑过渡到结束帧图片，最后一帧必须与结束帧图片完全相同。${prompt}`;
+      }
 
       // 根据选择的模型选择生成方式
       if (selectedModel === 'ark') {
         // 火山方舟Ark模型
-        await handleGenerateArk(firstFrameUrl, lastFrameUrl);
+        await handleGenerateArk(firstFrameUrl, lastFrameUrl, finalPrompt);
       } else {
         // Coze模型
         if (asyncMode) {
@@ -359,7 +380,7 @@ export default function TransitionVideoGenerator() {
   };
 
   // 火山方舟Ark模型生成视频
-  const handleGenerateArk = async (firstFrameUrl: string, lastFrameUrl: string) => {
+  const handleGenerateArk = async (firstFrameUrl: string | undefined, lastFrameUrl: string | undefined, finalPrompt: string) => {
     const response = await fetch('/api/generate-video-ark', {
       method: 'POST',
       headers: {
@@ -368,7 +389,7 @@ export default function TransitionVideoGenerator() {
       body: JSON.stringify({
         firstFrameUrl,
         lastFrameUrl,
-        prompt,
+        prompt: finalPrompt,
         duration,
         resolution,
         ratio,
@@ -395,7 +416,7 @@ export default function TransitionVideoGenerator() {
   };
 
   // 同步模式生成视频
-  const handleGenerateSync = async (firstFrameUrl: string, lastFrameUrl: string) => {
+  const handleGenerateSync = async (firstFrameUrl: string | undefined, lastFrameUrl: string | undefined) => {
     const response = await fetch('/api/generate-video-sse', {
       method: 'POST',
       headers: {
@@ -558,7 +579,7 @@ export default function TransitionVideoGenerator() {
                   帧图片上传
                 </CardTitle>
                 <CardDescription className="text-[#FFFFFF]/60">
-                  上传起始帧和结束帧图片
+                  上传首帧和结束帧图片（可选）
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -584,7 +605,7 @@ export default function TransitionVideoGenerator() {
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
                         <Upload className="w-8 h-8 mb-2" />
                         <span className="text-sm font-medium">首帧图片</span>
-                        <span className="text-xs mt-1">点击或拖拽上传</span>
+                        <span className="text-xs mt-1">点击或拖拽上传（可选）</span>
                       </div>
                     )}
                     <input
@@ -619,8 +640,8 @@ export default function TransitionVideoGenerator() {
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
                         <Upload className="w-8 h-8 mb-2" />
-                        <span className="text-sm font-medium">尾帧图片</span>
-                        <span className="text-xs mt-1">点击或拖拽上传</span>
+                        <span className="text-sm font-medium">结束帧图片</span>
+                        <span className="text-xs mt-1">点击或拖拽上传（可选）</span>
                       </div>
                     )}
                     <input

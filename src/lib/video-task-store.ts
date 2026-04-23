@@ -15,8 +15,8 @@ export interface VideoTask {
   updatedAt: number;
   // 请求参数
   params: {
-    firstFrameUrl: string;
-    lastFrameUrl: string;
+    firstFrameUrl?: string;
+    lastFrameUrl?: string;
     prompt: string;
     duration: number;
     resolution: string;
@@ -26,7 +26,6 @@ export interface VideoTask {
 }
 
 // 全局任务存储 - 在所有模块实例间共享
-// @ts-ignore - 全局变量用于跨模块共享状态
 declare global {
   var __videoTasks__: Map<string, VideoTask> | undefined;
 }

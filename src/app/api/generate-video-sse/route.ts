@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server';
 import { VideoGenerationClient, Config, HeaderUtils, Content } from 'coze-coding-dev-sdk';
 
 interface GenerateVideoRequest {
-  firstFrameUrl: string;
-  lastFrameUrl: string;
+  firstFrameUrl?: string;
+  lastFrameUrl?: string;
   prompt: string;
   duration: number;
   resolution: string;
@@ -101,10 +101,10 @@ export async function POST(request: NextRequest) {
     promptLength: prompt?.length,
   });
 
-  // Validate required fields
-  if (!firstFrameUrl || !lastFrameUrl) {
+  // Validate required fields (at least prompt is required)
+  if (!prompt?.trim()) {
     log('VALIDATION_ERROR', '缺少必需参数');
-    return new Response(JSON.stringify({ error: '首帧和尾帧图片URL是必需的' }), {
+    return new Response(JSON.stringify({ error: '提示词是必需的' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -146,29 +146,38 @@ export async function POST(request: NextRequest) {
           progress: 10,
         });
 
-        // Prepare content with first and last frame images
+        // Prepare content with first and last frame images (optional)
         log('CONTENT_PREPARE', '准备内容对象');
-        const content: Content[] = [
-          {
+        const content: Content[] = [];
+
+        // 只有在有首帧时才添加
+        if (firstFrameUrl) {
+          content.push({
             type: 'image_url',
             image_url: {
               url: firstFrameUrl,
             },
             role: 'first_frame',
-          },
-          {
+          });
+        }
+
+        // 只有在有结束帧时才添加
+        if (lastFrameUrl) {
+          content.push({
             type: 'image_url',
             image_url: {
               url: lastFrameUrl,
             },
             role: 'last_frame',
-          },
-          {
-            type: 'text',
-            text: prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。确保视频的第一帧与首帧图片完全相同，最后一帧与尾帧图片完全相同，中间过程自然流畅地过渡变化。',
-          },
-        ];
-        log('CONTENT_READY', '内容对象准备完成');
+          });
+        }
+
+        // 添加提示词
+        content.push({
+          type: 'text',
+          text: prompt,
+        });
+        log('CONTENT_READY', '内容对象准备完成', { hasFirstFrame: !!firstFrameUrl, hasLastFrame: !!lastFrameUrl });
 
         // Step 3: Submit task
         sendEvent(controller, 'status', {

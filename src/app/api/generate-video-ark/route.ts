@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { setTask, updateTask, VideoTask } from '@/lib/video-task-store';
 
 interface GenerateVideoRequest {
-  firstFrameUrl: string;
-  lastFrameUrl: string;
+  firstFrameUrl?: string;
+  lastFrameUrl?: string;
   prompt: string;
   duration: number;
   resolution: string;
@@ -137,41 +137,53 @@ export async function POST(request: NextRequest) {
       lastFrameUrl,
     });
 
-    // Validate required fields
-    if (!firstFrameUrl || !lastFrameUrl) {
+    // Validate required fields (at least prompt is required)
+    if (!prompt?.trim()) {
       log('VALIDATION_ERROR', '缺少必需参数');
-      return NextResponse.json({ error: '首帧和尾帧图片URL是必需的' }, { status: 400 });
+      return NextResponse.json({ error: '提示词是必需的' }, { status: 400 });
     }
 
     // 构建请求体 - 使用火山方舟API格式
+    const content: Array<{ type: string; text?: string; role?: string; image_url?: { url: string } }> = [
+      {
+        type: "text",
+        text: `${prompt} --duration ${duration || 5} --camerafixed false --watermark false`,
+      },
+    ];
+
+    // 只有在有首帧时才添加
+    if (firstFrameUrl) {
+      content.push({
+        type: "image_url",
+        role: "first_frame",
+        image_url: {
+          url: firstFrameUrl,
+        },
+      });
+    }
+
+    // 只有在有结束帧时才添加
+    if (lastFrameUrl) {
+      content.push({
+        type: "image_url",
+        role: "last_frame",
+        image_url: {
+          url: lastFrameUrl,
+        },
+      });
+    }
+
     const requestBody = {
       model: ARK_MODEL,
-      content: [
-        {
-          type: "text",
-          text: `${prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束'} --duration ${duration || 5} --camerafixed false --watermark false`,
-        },
-        {
-          type: "image_url",
-          role: "first_frame",
-          image_url: {
-            url: firstFrameUrl,
-          },
-        },
-        {
-          type: "image_url",
-          role: "last_frame",
-          image_url: {
-            url: lastFrameUrl,
-          },
-        },
-      ],
+      content,
     };
 
     log('API_CALL', '调用火山方舟视频生成API', {
       url: `${ARK_BASE_URL}/contents/generations/tasks`,
       model: ARK_MODEL,
       duration: duration || 5,
+      hasFirstFrame: !!firstFrameUrl,
+      hasLastFrame: !!lastFrameUrl,
     });
 
     // 调用火山方舟 API

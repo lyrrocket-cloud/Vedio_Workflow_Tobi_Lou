@@ -3,8 +3,8 @@ import { VideoGenerationClient, Config, HeaderUtils, Content } from 'coze-coding
 import { setTask, updateTask, VideoTask } from '@/lib/video-task-store';
 
 interface GenerateVideoRequest {
-  firstFrameUrl: string;
-  lastFrameUrl: string;
+  firstFrameUrl?: string;
+  lastFrameUrl?: string;
   prompt: string;
   duration: number;
   resolution: string;
@@ -36,10 +36,10 @@ export async function POST(request: NextRequest) {
     lastFrameUrlLength: lastFrameUrl?.length,
   });
 
-  // Validate required fields
-  if (!firstFrameUrl || !lastFrameUrl) {
+  // Validate required fields (at least prompt is required)
+  if (!prompt?.trim()) {
     log('VALIDATION_ERROR', '缺少必需参数');
-    return NextResponse.json({ error: '首帧和尾帧图片URL是必需的' }, { status: 400 });
+    return NextResponse.json({ error: '提示词是必需的' }, { status: 400 });
   }
 
   // Mock mode
@@ -96,23 +96,32 @@ export async function POST(request: NextRequest) {
     // Extract headers for forwarding
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
     
-    // Prepare content
-    const content: Content[] = [
-      {
+    // Prepare content (optional frames)
+    const content: Content[] = [];
+
+    // 只有在有首帧时才添加
+    if (firstFrameUrl) {
+      content.push({
         type: 'image_url',
         image_url: { url: firstFrameUrl },
         role: 'first_frame',
-      },
-      {
+      });
+    }
+
+    // 只有在有结束帧时才添加
+    if (lastFrameUrl) {
+      content.push({
         type: 'image_url',
         image_url: { url: lastFrameUrl },
         role: 'last_frame',
-      },
-      {
-        type: 'text',
-        text: prompt || '视频必须严格从首帧图片开始，平滑过渡到尾帧图片结束。',
-      },
-    ];
+      });
+    }
+
+    // 添加提示词
+    content.push({
+      type: 'text',
+      text: prompt,
+    });
 
     // Get domain for callback URL
     const domain = process.env.COZE_PROJECT_DOMAIN_DEFAULT || 'http://localhost:5000';
