@@ -56,7 +56,7 @@ export default function TransitionVideoGenerator() {
   const [duration, setDuration] = useState<number>(5);
   const [resolution, setResolution] = useState<string>('720p');
   const [ratio, setRatio] = useState<string>('16:9');
-  const [generateAudio, setGenerateAudio] = useState<boolean>(false); // 默认静音
+  const [generateAudio] = useState<boolean>(true); // 默认生成音频
   const [mockMode, setMockMode] = useState<boolean>(false);
   const [asyncMode, setAsyncMode] = useState<boolean>(true); // 默认使用异步模式
 
@@ -768,18 +768,6 @@ export default function TransitionVideoGenerator() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                {/* Audio Toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-[#FFFFFF]/80">生成音频</Label>
-                    <p className="text-xs text-[#FFFFFF]/50 mt-1">AI自动生成音效和背景音乐</p>
-                  </div>
-                  <Switch
-                    checked={generateAudio}
-                    onCheckedChange={setGenerateAudio}
-                  />
                 </div>
 
                 {/* Model Selection Tabs */}
