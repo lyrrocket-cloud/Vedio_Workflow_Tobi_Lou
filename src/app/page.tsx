@@ -1184,58 +1184,33 @@ export default function TransitionVideoGenerator() {
           </TabsContent>
 
           {/* 音效生成Tab */}
-          <TabsContent value="sfx" className="mt-0">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* 第一栏：输入提示词 */}
-              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-                <CardHeader>
-                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                    <Volume2 className="w-5 h-5 text-[#CEA472]" />
-                    音效生成
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-[#FFFFFF]/80">音效描述</Label>
-                    <Textarea
-                      value={sfxPrompt}
-                      onChange={(e) => setSfxPrompt(e.target.value)}
-                      placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
-                      className="bg-black/40 border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/30 focus:border-[#CEA472]/50 focus:ring-0 min-h-[120px] resize-none"
-                    />
+          <TabsContent value="sfx" className="space-y-6 mt-0">
+            {/* 提示词输入区 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Volume2 className="w-5 h-5 text-[#CEA472]" />
+                  音效描述
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label className="text-[#FFFFFF]/80">输入提示词</Label>
+                  <Textarea
+                    value={sfxPrompt}
+                    onChange={(e) => setSfxPrompt(e.target.value)}
+                    placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
+                    className="min-h-[80px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
+                  />
+                </div>
+
+                {sfxError && (
+                  <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                    {sfxError}
                   </div>
+                )}
 
-                  {/* 常用提示词快捷输入 */}
-                  <div className="space-y-2">
-                    <Label className="text-[#FFFFFF]/60 text-xs">快捷描述</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        '雨滴打在窗户上的声音',
-                        '森林中的鸟鸣和溪流',
-                        '城市街道的喧嚣',
-                        '海浪拍打沙滩',
-                        '雷声和风声',
-                        '键盘敲击声',
-                        '火焰燃烧的噼啪声',
-                        '脚步声回响在走廊',
-                      ].map((hint) => (
-                        <button
-                          key={hint}
-                          onClick={() => setSfxPrompt(hint)}
-                          className="px-3 py-1.5 text-xs rounded-full border border-[#CEA472]/30 text-[#CEA472]/80 hover:bg-[#CEA472]/10 hover:border-[#CEA472]/50 transition-colors"
-                        >
-                          {hint}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {sfxError && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
-                      {sfxError}
-                    </div>
-                  )}
-
+                <div className="mt-4">
                   <Button
                     onClick={async () => {
                       if (!sfxPrompt.trim()) {
@@ -1256,7 +1231,6 @@ export default function TransitionVideoGenerator() {
                         if (!response.ok || !data.success) {
                           throw new Error(data.error || '音效生成失败');
                         }
-                        // 添加到历史记录
                         setSfxHistory(prev => [{
                           id: taskId,
                           prompt: sfxPrompt.substring(0, 30) + (sfxPrompt.length > 30 ? '...' : ''),
@@ -1271,110 +1245,107 @@ export default function TransitionVideoGenerator() {
                       }
                     }}
                     disabled={isGeneratingSfx || !sfxPrompt.trim()}
-                    className="w-full bg-[#CEA472] hover:bg-[#CEA472]/80 text-black font-semibold"
+                    className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
                     {isGeneratingSfx ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                         生成中...
                       </>
                     ) : (
                       <>
-                        <Volume2 className="w-4 h-4 mr-2" />
+                        <Sparkles className="w-5 h-5 mr-2" />
                         生成音效
                       </>
                     )}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* 第二栏：任务监控 */}
-              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-                <CardHeader>
-                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-[#CEA472]" />
-                    任务监控
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {sfxHistory.length > 0 ? (
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                      {sfxHistory.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 bg-black/40 border border-[#CEA472]/20 rounded-xl p-3 hover:border-[#CEA472]/40 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-[#FFFFFF]/80 truncate">{item.prompt}</p>
-                            <p className="text-xs text-[#FFFFFF]/40 mt-0.5">{item.time}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {/* 预览按钮 */}
-                            <button
-                              id={`sfx-btn-${item.id}`}
-                              onClick={(e) => {
-                                const audio = document.getElementById(`sfx-audio-${item.id}`) as HTMLAudioElement;
-                                if (audio) {
-                                  document.querySelectorAll('audio').forEach(a => {
-                                    if (a !== audio) a.pause();
-                                  });
-                                  if (audio.paused) {
-                                    audio.play();
-                                    e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
-                                  } else {
-                                    audio.pause();
-                                    e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-                                  }
-                                }
-                              }}
-                              className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
-                              title="预览"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                              </svg>
-                            </button>
-                            <audio id={`sfx-audio-${item.id}`} src={item.url} preload="none"
-                              onEnded={() => {
-                                const btn = document.getElementById(`sfx-btn-${item.id}`);
-                                if (btn) btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-                              }}
-                            />
-                            {/* 下载按钮 */}
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const response = await fetch(item.url);
-                                  const blob = await response.blob();
-                                  const blobUrl = window.URL.createObjectURL(blob);
-                                  const link = document.createElement('a');
-                                  link.href = blobUrl;
-                                  link.download = `音效-${item.id}.mp3`;
-                                  link.click();
-                                  window.URL.revokeObjectURL(blobUrl);
-                                } catch {
-                                  // 降级：直接打开URL
-                                  window.open(item.url, '_blank');
-                                }
-                              }}
-                              className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
-                              title="下载"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                          </div>
+            {/* 任务监控区 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[#CEA472]" />
+                  任务监控
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {sfxHistory.length > 0 ? (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                    {sfxHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 bg-black/40 border border-[#CEA472]/20 rounded-xl p-3 hover:border-[#CEA472]/40 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[#FFFFFF]/80 truncate">{item.prompt}</p>
+                          <p className="text-xs text-[#FFFFFF]/40 mt-0.5">{item.time}</p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
-                      <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
-                      <p className="text-[#FFFFFF]/30 text-xs mt-1">生成音效后将显示在这里</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            id={`sfx-btn-${item.id}`}
+                            onClick={(e) => {
+                              const audio = document.getElementById(`sfx-audio-${item.id}`) as HTMLAudioElement;
+                              if (audio) {
+                                document.querySelectorAll('audio').forEach(a => {
+                                  if (a !== audio) a.pause();
+                                });
+                                if (audio.paused) {
+                                  audio.play();
+                                  e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+                                } else {
+                                  audio.pause();
+                                  e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                                }
+                              }
+                            }}
+                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                            title="预览"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                          </button>
+                          <audio id={`sfx-audio-${item.id}`} src={item.url} preload="none"
+                            onEnded={() => {
+                              const btn = document.getElementById(`sfx-btn-${item.id}`);
+                              if (btn) btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                            }}
+                          />
+                          <button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(item.url);
+                                const blob = await response.blob();
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = `音效-${item.id}.mp3`;
+                                link.click();
+                                window.URL.revokeObjectURL(blobUrl);
+                              } catch {
+                                window.open(item.url, '_blank');
+                              }
+                            }}
+                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                            title="下载"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
+                    <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
+                    <p className="text-[#FFFFFF]/30 text-xs mt-1">生成音效后将显示在这里</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
         </Tabs>
