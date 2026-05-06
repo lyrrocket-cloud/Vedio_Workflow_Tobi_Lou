@@ -75,7 +75,7 @@ export default function TransitionVideoGenerator() {
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
-  const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; url: string; time: string}>>([]);
+  const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; translatedPrompt: string; url: string; time: string}>>([]);
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
 
@@ -1234,6 +1234,7 @@ export default function TransitionVideoGenerator() {
                         setSfxHistory(prev => [{
                           id: taskId,
                           prompt: sfxPrompt.substring(0, 30) + (sfxPrompt.length > 30 ? '...' : ''),
+                          translatedPrompt: data.translatedPrompt || '',
                           url: data.audioUrl,
                           time: new Date().toLocaleTimeString(),
                         }, ...prev].slice(0, 10));
@@ -1281,6 +1282,9 @@ export default function TransitionVideoGenerator() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[#FFFFFF]/80 truncate">{item.prompt}</p>
+                          {item.translatedPrompt && (
+                            <p className="text-xs text-[#CEA472]/70 truncate mt-0.5">{item.translatedPrompt}</p>
+                          )}
                           <p className="text-xs text-[#FFFFFF]/40 mt-0.5">{item.time}</p>
                         </div>
                         <div className="flex items-center gap-1">
