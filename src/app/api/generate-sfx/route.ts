@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const GITEE_API_URL = 'https://ai.gitee.com/v1/async/audio/speech';
-const GITEE_API_TOKEN = process.env.GITEE_API_TOKEN || '';
+const GITEE_API_TOKEN = process.env.GITEE_API_TOKEN || 'TZ2MDIJ9DO3MASXXKHIUUFUZMRGFB9JS7AZMBB4I';
 
 interface SfxRequest {
   prompt: string;
