@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 const GITEE_API_URL = 'https://ai.gitee.com/v1/async/audio/speech';
 const GITEE_API_TOKEN = process.env.GITEE_API_TOKEN || 'TZ2MDIJ9DO3MASXXKHIUUFUZMRGFB9JS7AZMBB4I';
@@ -8,6 +9,28 @@ interface SfxRequest {
   steps?: number;
   guidanceScale?: number;
   outputFormat?: string;
+}
+
+// 使用豆包模型将中文翻译为英文
+async function translateToEnglish(chineseText: string, requestHeaders: Headers): Promise<string> {
+  const config = new Config();
+  const customHeaders = HeaderUtils.extractForwardHeaders(requestHeaders);
+  const client = new LLMClient(config, customHeaders);
+
+  const messages = [
+    {
+      role: 'system' as const,
+      content: 'You are a professional translator. Translate the following Chinese text to English. Only output the English translation, nothing else. The text is a sound effect description for AI audio generation. Keep the translation concise, vivid and descriptive.',
+    },
+    { role: 'user' as const, content: chineseText },
+  ];
+
+  const response = await client.invoke(messages, {
+    model: 'doubao-seed-1-6-lite-251015',
+    temperature: 0.3,
+  });
+
+  return response.content.trim();
 }
 
 // 提交音效生成任务
@@ -79,11 +102,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '未配置 GITEE_API_TOKEN' }, { status: 500 });
   }
 
-  console.log('[SFX] 提交音效生成任务:', { prompt: prompt.substring(0, 50), steps, guidanceScale, outputFormat });
+  console.log('[SFX] 原始提示词:', prompt);
 
   try {
-    // 1. 提交任务
-    const submitResult = await submitTask({ prompt, steps, guidanceScale, outputFormat });
+    // 0. 翻译中文提示词为英文
+    let englishPrompt = prompt;
+    try {
+      englishPrompt = await translateToEnglish(prompt, request.headers);
+      console.log('[SFX] 翻译后提示词:', englishPrompt);
+    } catch (translateErr) {
+      console.warn('[SFX] 翻译失败，使用原始提示词:', translateErr);
+    }
+
+    // 1. 提交任务（使用英文提示词）
+    const submitResult = await submitTask({ prompt: englishPrompt, steps, guidanceScale, outputFormat });
     const taskId = submitResult.task_id;
 
     if (!taskId) {
@@ -102,6 +134,8 @@ export async function POST(request: NextRequest) {
         success: true,
         audioUrl: result.fileUrl,
         taskId,
+        originalPrompt: prompt,
+        translatedPrompt: englishPrompt,
       });
     } else {
       console.error('[SFX] 任务失败:', result);
