@@ -881,7 +881,7 @@ export default function TransitionVideoGenerator() {
                         <p className="text-xs mt-1">开启异步模式后生成的任务会显示在这里</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                         {monitorTasks.map((task) => (
                           <div
                             key={task.id}
@@ -1109,7 +1109,7 @@ export default function TransitionVideoGenerator() {
                 {/* 任务历史 */}
                 {voiceHistory.length > 0 ? (
                   <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
-                    <div className="max-h-[300px] overflow-y-auto">
+                    <div className="max-h-[300px] overflow-y-auto pr-1">
                       {voiceHistory.map((item, index) => (
                         <div 
                           key={item.id}
