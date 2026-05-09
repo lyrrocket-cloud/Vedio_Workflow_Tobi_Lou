@@ -1195,7 +1195,6 @@ export default function TransitionVideoGenerator() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Label className="text-[#FFFFFF]/80">输入提示词</Label>
                   <Textarea
                     value={sfxPrompt}
                     onChange={(e) => setSfxPrompt(e.target.value)}
