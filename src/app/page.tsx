@@ -737,7 +737,7 @@ export default function TransitionVideoGenerator() {
                       <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30">
+                      <SelectContent position="popper" className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30 min-w-[var(--radix-select-trigger-width)]">
                         <SelectItem value="480p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">480p</SelectItem>
                         <SelectItem value="720p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">720p</SelectItem>
                         <SelectItem value="1080p" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">1080p</SelectItem>
@@ -750,7 +750,7 @@ export default function TransitionVideoGenerator() {
                       <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30">
+                      <SelectContent position="popper" className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30 min-w-[var(--radix-select-trigger-width)]">
                         <SelectItem value="16:9" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">16:9</SelectItem>
                         <SelectItem value="9:16" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">9:16</SelectItem>
                         <SelectItem value="1:1" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">1:1</SelectItem>
@@ -881,7 +881,7 @@ export default function TransitionVideoGenerator() {
                         <p className="text-xs mt-1">开启异步模式后生成的任务会显示在这里</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
                         {monitorTasks.map((task) => (
                           <div
                             key={task.id}
@@ -1109,7 +1109,7 @@ export default function TransitionVideoGenerator() {
                 {/* 任务历史 */}
                 {voiceHistory.length > 0 ? (
                   <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
-                    <div className="max-h-[300px] overflow-y-auto">
+                    <div className="max-h-[300px] overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
                       {voiceHistory.map((item, index) => (
                         <div 
                           key={item.id}
@@ -1274,7 +1274,7 @@ export default function TransitionVideoGenerator() {
               </CardHeader>
               <CardContent>
                 {sfxHistory.length > 0 ? (
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1" style={{ scrollbarGutter: 'stable' }}>
                     {sfxHistory.map((item) => (
                       <div
                         key={item.id}
