@@ -129,10 +129,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    scrollbar-gutter: stable;
   }
-  /* Prevent layout shift from scrollbar appearing/disappearing */
+  /* Prevent layout shift from scrollbar/Select dropdown */
   html {
     scrollbar-gutter: stable;
+    overflow-y: scroll;
+  }
+  /* Override Radix Select scroll lock which removes scrollbar causing layout shift */
+  body[data-scroll-locked] {
+    scrollbar-gutter: stable !important;
+    overflow-y: scroll !important;
+    padding-right: 0 !important;
   }
 }
 
