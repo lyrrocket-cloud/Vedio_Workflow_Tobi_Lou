@@ -130,11 +130,13 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Override Radix Select scroll lock: it adds padding-right to compensate
-     for disappearing scrollbar, causing layout shift. Remove both. */
+  /* Force scrollbar to always be visible so Radix Select
+     can't remove it and cause layout shift */
+  html {
+    overflow-y: scroll !important;
+  }
   body[data-scroll-locked] {
     padding-right: 0 !important;
-    overflow: auto !important;
     --removed-body-scroll-bar-size: 0px !important;
   }
 }
