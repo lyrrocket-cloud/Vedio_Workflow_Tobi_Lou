@@ -1029,71 +1029,87 @@ export default function TransitionVideoGenerator() {
               <CardContent>
                 {/* 任务历史 */}
                 {voiceHistory.length > 0 ? (
-                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
-                    <div className="max-h-[300px] overflow-y-scroll pr-1">
-                      {voiceHistory.map((item, index) => (
+                  <div className="space-y-2 max-h-[400px] overflow-y-scroll pr-1">
+                      {voiceHistory.map((item) => (
                         <div 
                           key={item.id}
-                          className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
+                          className="flex items-center gap-3 bg-black/40 border border-[#CEA472]/20 rounded-xl p-3 hover:border-[#CEA472]/40 transition-colors"
                         >
-                          <span className="text-[#FFFFFF]/50 text-xs w-5">{index + 1}</span>
-                          <Mic className="w-4 h-4 text-[#CEA472] shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-[#FFFFFF] text-sm truncate">{item.text}</p>
-                            <p className="text-[#FFFFFF]/40 text-xs mt-0.5">{item.time}</p>
+                            <p className="text-sm text-[#FFFFFF]/80 truncate">{item.text}</p>
+                            <p className="text-xs text-[#FFFFFF]/40 mt-0.5">{item.time}</p>
                           </div>
-                          <audio 
-                            id={`voice-audio-${item.id}`}
-                            src={item.url} 
-                            className="hidden"
-                            onEnded={(e) => {
-                              const btn = document.getElementById(`voice-btn-${item.id}`);
-                              if (btn) {
-                                btn.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
-                              }
-                            }}
-                          />
-                          <button
-                            id={`voice-btn-${item.id}`}
-                            onClick={(e) => {
-                              const audio = document.getElementById(`voice-audio-${item.id}`) as HTMLAudioElement;
-                              if (audio) {
-                                // 停止其他音频
-                                document.querySelectorAll('audio').forEach(a => {
-                                  if (a !== audio) a.pause();
-                                });
-                                if (audio.paused) {
-                                  audio.play();
-                                  e.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"></rect><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"></rect></svg>';
-                                } else {
-                                  audio.pause();
-                                  e.currentTarget.innerHTML = '<svg class=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><polygon points=\"5 3 19 12 5 21 5 3\"></polygon></svg>';
+                          <div className="flex items-center gap-1">
+                            <audio 
+                              id={`voice-audio-${item.id}`}
+                              src={item.url} 
+                              preload="none"
+                              onEnded={() => {
+                                const btn = document.getElementById(`voice-btn-${item.id}`);
+                                if (btn) btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                              }}
+                            />
+                            <button
+                              id={`voice-btn-${item.id}`}
+                              onClick={(e) => {
+                                const audio = document.getElementById(`voice-audio-${item.id}`) as HTMLAudioElement;
+                                if (audio) {
+                                  document.querySelectorAll('audio').forEach(a => {
+                                    if (a !== audio) a.pause();
+                                  });
+                                  if (audio.paused) {
+                                    audio.play();
+                                    e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+                                  } else {
+                                    audio.pause();
+                                    e.currentTarget.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                                  }
                                 }
-                              }
-                            }}
-                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
-                            title="预览"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              const link = document.createElement('a');
-                              link.href = item.url;
-                              link.download = `配音-${item.id}.mp3`;
-                              link.click();
-                            }}
-                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
-                            title="下载"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
+                              }}
+                              className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                              title="预览"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(item.url);
+                                  const blob = await response.blob();
+                                  const blobUrl = window.URL.createObjectURL(blob);
+                                  const link = document.createElement('a');
+                                  link.href = blobUrl;
+                                  link.download = `配音-${item.id}.mp3`;
+                                  link.click();
+                                  window.URL.revokeObjectURL(blobUrl);
+                                } catch {
+                                  window.open(item.url, '_blank');
+                                }
+                              }}
+                              className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                              title="下载"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const audio = document.getElementById(`voice-audio-${item.id}`) as HTMLAudioElement;
+                                if (audio) audio.pause();
+                                setVoiceHistory(prev => prev.filter(h => h.id !== item.id));
+                              }}
+                              className="p-2 hover:bg-red-500/20 rounded-full transition-colors shrink-0 text-red-400"
+                              title="删除"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
                 ) : (
                   <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
                     <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
