@@ -129,15 +129,11 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-  /* Force scrollbar to always be visible so Radix Select
-     can't remove it and cause layout shift */
-  html {
-    overflow-y: scroll !important;
+    overflow-x: hidden;
+    width: 100%;
   }
   body[data-scroll-locked] {
     padding-right: 0 !important;
-    --removed-body-scroll-bar-size: 0px !important;
   }
 }
 
