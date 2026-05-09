@@ -734,7 +734,7 @@ export default function TransitionVideoGenerator() {
                   <div className="space-y-2">
                     <Label className="text-[#FFFFFF]/80">分辨率</Label>
                     <Select value={resolution} onValueChange={setResolution}>
-                      <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
+                      <SelectTrigger className="w-full bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent position="popper" className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30 min-w-[var(--radix-select-trigger-width)]">
@@ -747,7 +747,7 @@ export default function TransitionVideoGenerator() {
                   <div className="space-y-2">
                     <Label className="text-[#FFFFFF]/80">宽高比</Label>
                     <Select value={ratio} onValueChange={setRatio}>
-                      <SelectTrigger className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
+                      <SelectTrigger className="w-full bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent position="popper" className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30 min-w-[var(--radix-select-trigger-width)]">
