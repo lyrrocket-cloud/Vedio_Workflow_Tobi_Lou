@@ -1045,8 +1045,7 @@ export default function TransitionVideoGenerator() {
                   value={voiceText}
                   onChange={(e) => setVoiceText(e.target.value)}
                   placeholder="输入要生成的配音内容..."
-                  className="bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
-                  rows={4}
+                  className="min-h-[120px] bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] placeholder:text-[#FFFFFF]/50 focus:border-[#CEA472]/50 focus:ring-0 resize-none"
                 />
                 <Button
                   onClick={handleGenerateVoice}
@@ -1199,7 +1198,7 @@ export default function TransitionVideoGenerator() {
                     value={sfxPrompt}
                     onChange={(e) => setSfxPrompt(e.target.value)}
                     placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
-                    className="min-h-[80px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
+                    className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
                   />
                 </div>
 
