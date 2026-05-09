@@ -126,21 +126,29 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
   }
   body {
     @apply bg-background text-foreground;
+    overflow-y: overlay;
   }
 }
 
 body {
   @apply font-sans;
-  overflow-y: overlay;
 }
 
-/* Webkit scrollbar overlay */
+/* All scrollbars: thin, semi-transparent, overlay-style */
+* {
+  overflow-y: overlay;
+  overflow-x: overlay;
+}
+
+/* Webkit scrollbar overlay - applies to all elements including dropdowns */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -154,4 +162,9 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Corner where horizontal and vertical scrollbars meet */
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
