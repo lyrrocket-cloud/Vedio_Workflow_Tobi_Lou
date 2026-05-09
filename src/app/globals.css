@@ -129,17 +129,15 @@
   }
   body {
     @apply bg-background text-foreground;
-    scrollbar-gutter: stable;
   }
-  /* Prevent layout shift from scrollbar/Select dropdown */
+  /* Reserve scrollbar space so layout doesn't shift */
   html {
     scrollbar-gutter: stable;
-    overflow-y: scroll;
   }
-  /* Override Radix Select scroll lock which removes scrollbar causing layout shift */
+  /* Override Radix Select scroll lock: it adds padding-right to compensate
+     for disappearing scrollbar, but scrollbar-gutter:stable keeps the space,
+     so the compensation causes a white edge. Remove it. */
   body[data-scroll-locked] {
-    scrollbar-gutter: stable !important;
-    overflow-y: scroll !important;
     padding-right: 0 !important;
   }
 }
