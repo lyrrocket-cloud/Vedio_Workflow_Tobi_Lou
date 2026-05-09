@@ -819,7 +819,7 @@ export default function TransitionVideoGenerator() {
               <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
                 <CardHeader>
                   <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                    <Monitor className="w-5 h-5 text-[#CEA472]" />
+                    <Activity className="w-5 h-5 text-[#CEA472]" />
                     任务监控
                   </CardTitle>
                 </CardHeader>
