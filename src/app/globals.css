@@ -130,13 +130,8 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Reserve scrollbar space so layout doesn't shift */
-  html {
-    scrollbar-gutter: stable;
-  }
   /* Override Radix Select scroll lock: it adds padding-right to compensate
-     for disappearing scrollbar, but scrollbar-gutter:stable keeps the space,
-     so the compensation causes a white edge. Remove it. */
+     for disappearing scrollbar, causing layout shift. Remove it. */
   body[data-scroll-locked] {
     padding-right: 0 !important;
   }
