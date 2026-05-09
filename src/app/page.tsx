@@ -1051,7 +1051,7 @@ export default function TransitionVideoGenerator() {
                 <Button
                   onClick={handleGenerateVoice}
                   disabled={isGeneratingVoice || !voiceText.trim()}
-                  className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border-[#CEA472]/20 shadow-lg font-semibold text-base rounded-xl transition-all duration-300 disabled:opacity-50"
+                  className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/80 text-[#0a0a0f] border-[#CEA472]/20 shadow-lg font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                 >
                   {isGeneratingVoice ? (
                     <>
