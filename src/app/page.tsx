@@ -920,6 +920,15 @@ export default function TransitionVideoGenerator() {
                                   <Download className="w-4 h-4" />
                                 </Button>
                               )}
+                              <Button
+                                onClick={() => setMonitorTasks(prev => prev.filter(t => t.id !== task.id))}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 hover:bg-red-500/10 text-red-500"
+                                title="删除"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                               {(task.status === 'queued' || task.status === 'running') && (
                                 <Button
                                   onClick={() => cancelTask(task.id)}
