@@ -144,10 +144,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建请求体 - 使用火山方舟API格式
+    // seedance 1.5 pro 使用顶层参数，不再用文本命令格式
     const content: Array<{ type: string; text?: string; role?: string; image_url?: { url: string } }> = [
       {
         type: "text",
-        text: `${prompt} --duration ${duration || 5} --camerafixed false --watermark false`,
+        text: prompt,
       },
     ];
 
@@ -173,15 +174,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const requestBody = {
+    // 有参考图时不支持1080p，自动降级为720p
+    const finalResolution = (firstFrameUrl || lastFrameUrl) && resolution === '1080p' ? '720p' : resolution;
+
+    const requestBody: Record<string, unknown> = {
       model: ARK_MODEL,
       content,
+      resolution: finalResolution || '720p',
+      duration: duration || 5,
+      ratio: ratio || '16:9',
+      generate_audio: generateAudio ?? true,
+      watermark: false,
     };
 
     log('API_CALL', '调用火山方舟视频生成API', {
       url: `${ARK_BASE_URL}/contents/generations/tasks`,
       model: ARK_MODEL,
+      resolution: finalResolution || '720p',
       duration: duration || 5,
+      ratio: ratio || '16:9',
+      generateAudio: generateAudio ?? true,
       hasFirstFrame: !!firstFrameUrl,
       hasLastFrame: !!lastFrameUrl,
     });
