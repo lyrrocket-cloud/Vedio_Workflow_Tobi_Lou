@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity, Languages } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UploadResponse {
@@ -73,6 +73,8 @@ export default function TransitionVideoGenerator() {
 
   // 音效生成状态
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
+  const [sfxEnglishPrompt, setSfxEnglishPrompt] = useState<string>('');
+  const [isTranslatingSfx, setIsTranslatingSfx] = useState<boolean>(false);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
   const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; translatedPrompt: string; url: string; time: string}>>([]);
@@ -1131,13 +1133,61 @@ export default function TransitionVideoGenerator() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <Textarea
-                    value={sfxPrompt}
-                    onChange={(e) => setSfxPrompt(e.target.value)}
-                    placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
-                    className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-[#FFFFFF]/50 mb-1 block">中文描述</label>
+                    <Textarea
+                      value={sfxPrompt}
+                      onChange={(e) => { setSfxPrompt(e.target.value); setSfxError(''); }}
+                      placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
+                      className="min-h-[80px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
+                    />
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!sfxPrompt.trim()) return;
+                      setIsTranslatingSfx(true);
+                      setSfxError('');
+                      try {
+                        const response = await fetch('/api/translate-sfx', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ prompt: sfxPrompt }),
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error || '翻译失败');
+                        setSfxEnglishPrompt(data.translated);
+                      } catch (err) {
+                        setSfxError(err instanceof Error ? err.message : '翻译失败');
+                      } finally {
+                        setIsTranslatingSfx(false);
+                      }
+                    }}
+                    disabled={isTranslatingSfx || !sfxPrompt.trim()}
+                    className="w-full h-9 bg-[#CEA472]/20 hover:bg-[#CEA472]/30 text-[#CEA472] border border-[#CEA472]/30 rounded-lg transition-all duration-300 disabled:opacity-50 text-sm"
+                    variant="outline"
+                  >
+                    {isTranslatingSfx ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                        翻译中...
+                      </>
+                    ) : (
+                      <>
+                        <Languages className="w-4 h-4 mr-1.5" />
+                        翻译为英文
+                      </>
+                    )}
+                  </Button>
+                  <div>
+                    <label className="text-xs text-[#FFFFFF]/50 mb-1 block">英文提示词（可编辑）</label>
+                    <Textarea
+                      value={sfxEnglishPrompt}
+                      onChange={(e) => setSfxEnglishPrompt(e.target.value)}
+                      placeholder="English prompt will appear here after translation, or type directly..."
+                      className="min-h-[80px] bg-black/40 border-[#CEA472]/20 text-[#CEA472] placeholder:text-[#FFFFFF]/30 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20 italic"
+                    />
+                  </div>
                 </div>
 
                 {sfxError && (
@@ -1149,7 +1199,7 @@ export default function TransitionVideoGenerator() {
                 <div className="mt-4">
                   <Button
                     onClick={async () => {
-                      if (!sfxPrompt.trim()) {
+                      if (!sfxPrompt.trim() && !sfxEnglishPrompt.trim()) {
                         setSfxError('请输入音效描述');
                         return;
                       }
@@ -1161,7 +1211,7 @@ export default function TransitionVideoGenerator() {
                         const response = await fetch('/api/generate-sfx', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ prompt: sfxPrompt }),
+                          body: JSON.stringify({ prompt: sfxPrompt || sfxEnglishPrompt, englishPrompt: sfxEnglishPrompt }),
                         });
                         const data = await response.json();
                         if (!response.ok || !data.success) {
@@ -1170,7 +1220,7 @@ export default function TransitionVideoGenerator() {
                         setSfxHistory(prev => [{
                           id: taskId,
                           prompt: sfxPrompt.substring(0, 30) + (sfxPrompt.length > 30 ? '...' : ''),
-                          translatedPrompt: data.translatedPrompt || '',
+                          translatedPrompt: data.translatedPrompt || sfxEnglishPrompt,
                           url: data.audioUrl,
                           time: new Date().toLocaleTimeString(),
                         }, ...prev].slice(0, 10));
@@ -1181,7 +1231,7 @@ export default function TransitionVideoGenerator() {
                         setIsGeneratingSfx(false);
                       }
                     }}
-                    disabled={isGeneratingSfx || !sfxPrompt.trim()}
+                    disabled={isGeneratingSfx || (!sfxPrompt.trim() && !sfxEnglishPrompt.trim())}
                     className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
                     {isGeneratingSfx ? (

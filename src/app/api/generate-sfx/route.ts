@@ -6,12 +6,13 @@ const GITEE_API_TOKEN = process.env.GITEE_API_TOKEN || 'TZ2MDIJ9DO3MASXXKHIUUFUZ
 
 interface SfxRequest {
   prompt: string;
+  englishPrompt?: string; // 前端已翻译的英文提示词，优先使用
   steps?: number;
   guidanceScale?: number;
   outputFormat?: string;
 }
 
-// 使用豆包模型将中文翻译为英文
+// 使用豆包模型将中文翻译为英文（备用，前端未翻译时使用）
 async function translateToEnglish(chineseText: string, requestHeaders: Headers): Promise<string> {
   const config = new Config();
   const customHeaders = HeaderUtils.extractForwardHeaders(requestHeaders);
@@ -20,7 +21,7 @@ async function translateToEnglish(chineseText: string, requestHeaders: Headers):
   const messages = [
     {
       role: 'system' as const,
-      content: 'You are a professional translator. Translate the following Chinese text to English. Only output the English translation, nothing else. The text is a sound effect description for AI audio generation. Keep the translation concise, vivid and descriptive.',
+      content: `You are an expert sound designer. Translate the Chinese sound effect description into English. Use vivid sensory words, onomatopoeia, and describe timbre/pitch/volume/texture. Output ONLY the English translation, no explanations.`,
     },
     { role: 'user' as const, content: chineseText },
   ];
@@ -34,7 +35,7 @@ async function translateToEnglish(chineseText: string, requestHeaders: Headers):
 }
 
 // 提交音效生成任务
-async function submitTask(params: SfxRequest) {
+async function submitTask(params: { prompt: string; steps?: number; guidanceScale?: number; outputFormat?: string }) {
   const response = await fetch(GITEE_API_URL, {
     method: 'POST',
     headers: {
@@ -78,7 +79,6 @@ async function pollTask(taskId: string, maxAttempts: number = 60, interval: numb
         return { status: 'failed', error: `任务${status}` };
       }
 
-      // 仍在处理中，等待后重试
       await new Promise(resolve => setTimeout(resolve, interval));
     } catch (err) {
       console.error('[SFX] 轮询错误:', err);
@@ -92,7 +92,7 @@ async function pollTask(taskId: string, maxAttempts: number = 60, interval: numb
 // POST: 提交任务并轮询等待结果
 export async function POST(request: NextRequest) {
   const body: SfxRequest = await request.json();
-  const { prompt, steps, guidanceScale, outputFormat } = body;
+  const { prompt, englishPrompt, steps, guidanceScale, outputFormat } = body;
 
   if (!prompt?.trim()) {
     return NextResponse.json({ error: '请输入音效描述' }, { status: 400 });
@@ -103,19 +103,23 @@ export async function POST(request: NextRequest) {
   }
 
   console.log('[SFX] 原始提示词:', prompt);
+  console.log('[SFX] 前端传入英文提示词:', englishPrompt || '(无)');
 
   try {
-    // 0. 翻译中文提示词为英文
-    let englishPrompt = prompt;
-    try {
-      englishPrompt = await translateToEnglish(prompt, request.headers);
-      console.log('[SFX] 翻译后提示词:', englishPrompt);
-    } catch (translateErr) {
-      console.warn('[SFX] 翻译失败，使用原始提示词:', translateErr);
+    // 确定最终使用的英文提示词：优先用前端已翻译的，否则后端翻译
+    let finalEnglishPrompt = englishPrompt || '';
+    if (!finalEnglishPrompt.trim()) {
+      try {
+        finalEnglishPrompt = await translateToEnglish(prompt, request.headers);
+        console.log('[SFX] 后端翻译提示词:', finalEnglishPrompt);
+      } catch (translateErr) {
+        console.warn('[SFX] 翻译失败，使用原始提示词:', translateErr);
+        finalEnglishPrompt = prompt;
+      }
     }
 
     // 1. 提交任务（使用英文提示词）
-    const submitResult = await submitTask({ prompt: englishPrompt, steps, guidanceScale, outputFormat });
+    const submitResult = await submitTask({ prompt: finalEnglishPrompt, steps, guidanceScale, outputFormat });
     const taskId = submitResult.task_id;
 
     if (!taskId) {
@@ -135,7 +139,7 @@ export async function POST(request: NextRequest) {
         audioUrl: result.fileUrl,
         taskId,
         originalPrompt: prompt,
-        translatedPrompt: englishPrompt,
+        translatedPrompt: finalEnglishPrompt,
       });
     } else {
       console.error('[SFX] 任务失败:', result);
