@@ -44,7 +44,7 @@ Good examples:
     ];
 
     const response = await client.invoke(messages, {
-      model: 'doubao-seed-1-6-lite-251015',
+      model: 'doubao-seed-1-8-251228',
       temperature: 0.3,
     });
 
