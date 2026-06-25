@@ -13,13 +13,23 @@ interface TranscribeRequest {
   fileName?: string;
 }
 
-const ARK_API_KEY = process.env.ARK_API_KEY || '5beaa835-c9f1-4ac4-907c-566a2e0e268b';
-const ARK_BASE_URL = process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
-const ARK_ASR_MODEL = process.env.ARK_ASR_MODEL || 'ep-20260625150723-xmwpq';
+const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
+const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
+const VOLC_SECRET_KEY = process.env.VOLC_SECRET_KEY || 'MS1sWfWny32ozuAvK5HemPrxIm_UWh-M';
+const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.seedasr.auc';
+const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
 
 function log(stage: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [TRANSCRIBE] [${stage}] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
+}
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 function formatTimeSRT(seconds: number): string {
@@ -80,103 +90,51 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 </fcpxml>`;
 }
 
-async function pollASRStatus(taskId: string, maxWaitTime: number = 180): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < maxWaitTime * 1000) {
-    try {
-      const pollUrl = `${ARK_BASE_URL}/speech/recognition/tasks/${taskId}`;
-      log('POLL_REQUEST', '查询ASR任务状态', { url: pollUrl, taskId });
-      
-      const response = await fetch(pollUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${ARK_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        log('POLL_ERROR', '轮询状态失败', { status: response.status, error: errorText });
-        throw new Error(`轮询失败: ${response.status}`);
-      }
-
-      const data = await response.json();
-      log('POLL_RESPONSE', 'ASR任务响应', { taskId, data: JSON.stringify(data).slice(0, 500) });
-
-      const taskStatus = data.status || data.task_status || data.state || 'unknown';
-      log('POLL_STATUS', 'ASR任务状态解析', { taskId, rawStatus: data.status, parsedStatus: taskStatus });
-
-      if (taskStatus === 'succeed' || taskStatus === 'succeeded' || taskStatus === 'success' || taskStatus === 'completed') {
-        const segments = parseASRSegments(data);
-        log('POLL_SUCCESS', 'ASR任务成功', { taskId, segments: segments.length });
-        return { status: 'succeeded', segments };
-      } else if (taskStatus === 'failed' || taskStatus === 'fail' || taskStatus === 'error') {
-        const errorMsg = data.error?.message || data.message || data.error || 'ASR任务失败';
-        log('POLL_FAILED', 'ASR任务失败', { taskId, error: errorMsg });
-        return { status: 'failed', error: errorMsg };
-      } else if (taskStatus === 'cancelled' || taskStatus === 'cancel') {
-        log('POLL_CANCELLED', 'ASR任务取消', { taskId });
-        return { status: 'cancelled', error: '任务已取消' };
-      }
-
-      log('POLL_RUNNING', 'ASR任务进行中，继续等待', { taskId, status: taskStatus });
-
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    } catch (error) {
-      log('POLL_ERROR', '轮询异常', { error: String(error) });
-      throw error;
-    }
-  }
-
-  log('POLL_TIMEOUT', 'ASR任务超时', { taskId, maxWaitTime });
-  return { status: 'running', error: '任务超时' };
+function getAudioFormat(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const formatMap: Record<string, string> = {
+    'mp3': 'mp3',
+    'wav': 'wav',
+    'm4a': 'mp4',
+    'mp4': 'mp4',
+    'mov': 'mp4',
+    'ogg': 'ogg',
+    'opus': 'opus',
+    'raw': 'raw',
+  };
+  return formatMap[ext] || 'mp3';
 }
 
-function parseASRSegments(data: Record<string, unknown>): SubtitleSegment[] {
+function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
   const result: SubtitleSegment[] = [];
   
   try {
     const resultData = data.result as Record<string, unknown> || {};
-    const outputData = data.output as Record<string, unknown> || {};
+    const utterances = resultData.utterances;
     
-    const alternatives = resultData.alternatives || outputData.alternatives || data.alternatives;
-    if (Array.isArray(alternatives) && alternatives.length > 0) {
-      const firstAlternative = alternatives[0] as Record<string, unknown>;
-      const words = firstAlternative.words || firstAlternative.segments || firstAlternative.items;
-      
-      if (Array.isArray(words)) {
-        words.forEach((word: Record<string, unknown>, index: number) => {
-          const start = typeof word.start === 'number' ? word.start : 
-                       typeof word.begin_time === 'number' ? word.begin_time / 1000 : 
-                       typeof word.start_time === 'number' ? word.start_time : 
-                       index * 2;
-          const end = typeof word.end === 'number' ? word.end : 
-                     typeof word.end_time === 'number' ? word.end_time / 1000 : 
-                     typeof word.duration === 'number' ? start + (word.duration / 1000) : 
-                     start + 2;
-          const text = word.text || word.word || '';
-          
-          if (text && typeof text === 'string') {
-            result.push({
-              id: index + 1,
-              start: parseFloat(start.toFixed(3)),
-              end: parseFloat(end.toFixed(3)),
-              text: text.trim(),
-            });
-          }
-        });
-      } else {
-        const text = firstAlternative.text || resultData.text || '';
-        if (text) {
-          result.push({ id: 1, start: 0, end: 30, text: String(text) });
+    if (Array.isArray(utterances) && utterances.length > 0) {
+      utterances.forEach((utterance: Record<string, unknown>, index: number) => {
+        const startTime = typeof utterance.start_time === 'number' ? utterance.start_time / 1000 : index * 3;
+        const endTime = typeof utterance.end_time === 'number' ? utterance.end_time / 1000 : startTime + 2;
+        const text = utterance.text || '';
+        
+        if (text && typeof text === 'string') {
+          result.push({
+            id: index + 1,
+            start: parseFloat(startTime.toFixed(3)),
+            end: parseFloat(endTime.toFixed(3)),
+            text: String(text).trim(),
+          });
         }
-      }
-    } else {
-      const text = resultData.text || outputData.text || '';
+      });
+    }
+    
+    if (result.length === 0) {
+      const text = resultData.text || data.text || '';
       if (text) {
-        result.push({ id: 1, start: 0, end: 30, text: String(text) });
+        const audioInfo = data.audio_info as Record<string, unknown> || {};
+        const duration = typeof audioInfo.duration === 'number' ? audioInfo.duration / 1000 : 30;
+        result.push({ id: 1, start: 0, end: duration, text: String(text) });
       }
     }
   } catch (e) {
@@ -186,54 +144,150 @@ function parseASRSegments(data: Record<string, unknown>): SubtitleSegment[] {
   return result.length > 0 ? result : [{ id: 1, start: 0, end: 30, text: '未识别到语音内容' }];
 }
 
-async function transcribeWithVolcARK(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
-  log('ARK_TRANSCRIBE', '使用火山方舟ASR转写', { fileName, model: ARK_ASR_MODEL });
+async function submitASRTask(fileUrl: string, fileName: string, requestId: string): Promise<void> {
+  const submitUrl = `${VOLC_BASE_URL}/submit`;
+  const format = getAudioFormat(fileName);
   
   const requestBody = {
-    model: ARK_ASR_MODEL,
-    audio_url: fileUrl,
-    language: 'zh',
-    enable_word_timestamp: true,
+    user: {
+      uid: VOLC_APP_ID,
+    },
+    audio: {
+      format: format,
+      url: fileUrl,
+    },
+    request: {
+      model_name: 'bigmodel',
+      enable_itn: true,
+      enable_punc: true,
+      show_utterances: true,
+    },
   };
 
-  log('ARK_API_CALL', '调用火山方舟ASR API', {
-    url: `${ARK_BASE_URL}/speech/recognition/tasks`,
-    model: ARK_ASR_MODEL,
+  log('SUBMIT_REQUEST', '提交ASR任务', {
+    url: submitUrl,
+    requestId,
+    appId: VOLC_APP_ID,
+    resourceId: VOLC_RESOURCE_ID,
+    format,
     audioUrl: fileUrl.slice(0, 50) + '...',
   });
 
-  const response = await fetch(`${ARK_BASE_URL}/speech/recognition/tasks`, {
+  const response = await fetch(submitUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${ARK_API_KEY}`,
       'Content-Type': 'application/json',
+      'X-Api-App-Key': VOLC_APP_ID,
+      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
+      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Request-Id': requestId,
+      'X-Api-Sequence': '-1',
     },
     body: JSON.stringify(requestBody),
   });
 
+  const logId = response.headers.get('X-Tt-Logid') || '';
+  const statusCode = response.headers.get('X-Api-Status-Code') || '';
+  const message = response.headers.get('X-Api-Message') || '';
+  
+  log('SUBMIT_RESPONSE', '提交任务响应', {
+    status: response.status,
+    logId,
+    statusCode,
+    message,
+  });
+
   if (!response.ok) {
     const errorText = await response.text();
-    log('ARK_API_ERROR', 'ASR API调用失败', { status: response.status, error: errorText });
-    throw new Error(`ASR API调用失败: ${response.status} - ${errorText}`);
+    log('SUBMIT_ERROR', '提交ASR任务失败', {
+      status: response.status,
+      statusCode,
+      message,
+      error: errorText.slice(0, 500),
+    });
+    throw new Error(`提交ASR任务失败: ${statusCode} - ${message}`);
   }
+
+  if (statusCode && statusCode !== '20000000') {
+    throw new Error(`提交ASR任务失败: ${statusCode} - ${message}`);
+  }
+  
+  const responseBody = await response.text();
+  log('SUBMIT_BODY', '提交任务响应体', { body: responseBody.slice(0, 200) });
+}
+
+async function queryASRResult(requestId: string): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
+  const queryUrl = `${VOLC_BASE_URL}/query`;
+
+  log('QUERY_REQUEST', '查询ASR结果', {
+    url: queryUrl,
+    requestId,
+  });
+
+  const response = await fetch(queryUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-App-Key': VOLC_APP_ID,
+      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
+      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Request-Id': requestId,
+    },
+    body: JSON.stringify({}),
+  });
+
+  const logId = response.headers.get('X-Tt-Logid') || '';
+  const statusCode = response.headers.get('X-Api-Status-Code') || '';
+  const message = response.headers.get('X-Api-Message') || '';
 
   const data = await response.json();
-  log('ARK_API_RESPONSE', 'ASR API响应', data);
+  log('QUERY_RESPONSE', '查询结果响应', {
+    status: response.status,
+    logId,
+    statusCode,
+    message,
+    data: JSON.stringify(data).slice(0, 500),
+  });
 
-  const taskId = data.id || data.task_id;
-  if (!taskId) {
-    log('ARK_API_ERROR', '未获取到ASR任务ID', { response: data });
-    throw new Error('未获取到ASR任务ID');
+  if (statusCode === '20000000') {
+    const segments = parseASRResult(data as Record<string, unknown>);
+    log('QUERY_SUCCESS', 'ASR任务完成', { segments: segments.length });
+    return { status: 'succeeded', segments };
+  } else if (statusCode === '20000001' || statusCode === '20000002') {
+    log('QUERY_RUNNING', 'ASR任务处理中', { statusCode, message });
+    return { status: 'running' };
+  } else {
+    log('QUERY_FAILED', 'ASR任务失败', { statusCode, message });
+    return { status: 'failed', error: message || `错误码: ${statusCode}` };
   }
+}
 
-  log('ARK_POLLING', '开始轮询ASR任务状态', { taskId });
-  const result = await pollASRStatus(taskId, 180);
-
-  if (result.status !== 'succeeded') {
-    throw new Error(result.error || 'ASR转写失败');
+async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
+  log('VOLC_TRANSCRIBE', '使用火山引擎录音文件识别', { fileName, resourceId: VOLC_RESOURCE_ID });
+  
+  const requestId = generateUUID();
+  
+  await submitASRTask(fileUrl, fileName, requestId);
+  
+  log('POLLING_START', '开始轮询ASR结果', { requestId });
+  
+  const maxWaitTime = 300;
+  const pollInterval = 3000;
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitTime * 1000) {
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    
+    const result = await queryASRResult(requestId);
+    
+    if (result.status === 'succeeded') {
+      return result.segments || [];
+    } else if (result.status === 'failed') {
+      throw new Error(result.error || 'ASR转写失败');
+    }
   }
-
-  return result.segments || [];
+  
+  throw new Error('ASR转写超时，请稍后重试');
 }
 
 export async function POST(request: NextRequest) {
@@ -291,9 +345,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    log('TRANSCRIBE_START', '开始转写', { fileName, format, frameRate, model: ARK_ASR_MODEL });
+    log('TRANSCRIBE_START', '开始转写', { fileName, format, frameRate, model: VOLC_RESOURCE_ID });
     
-    const segments = await transcribeWithVolcARK(fileUrl, fileName || 'unknown');
+    const segments = await transcribeWithVolcSpeech(fileUrl, fileName || 'unknown');
     
     let content: string;
     let contentType: string;
