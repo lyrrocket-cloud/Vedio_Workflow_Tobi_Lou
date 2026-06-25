@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity } from 'lucide-react';
+import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity, Subtitles, FileVideo2, AudioLines } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UploadResponse {
@@ -76,6 +76,18 @@ export default function TransitionVideoGenerator() {
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
   const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; translatedPrompt: string; url: string; time: string}>>([]);
+
+  // 字幕生成状态
+  const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
+  const [subtitleFileName, setSubtitleFileName] = useState<string>('');
+  const [isGeneratingSubtitle, setIsGeneratingSubtitle] = useState<boolean>(false);
+  const [subtitleError, setSubtitleError] = useState<string>('');
+  const [subtitleFormat, setSubtitleFormat] = useState<'srt' | 'fcpxml'>('srt');
+  const [subtitleFrameRate, setSubtitleFrameRate] = useState<string>('30');
+  const [subtitleSegments, setSubtitleSegments] = useState<Array<{id: number; start: number; end: number; text: string}>>([]);
+  const [subtitleContent, setSubtitleContent] = useState<string>('');
+  const [subtitleHistory, setSubtitleHistory] = useState<Array<{id: string; fileName: string; format: string; segments: number; time: string; content: string; downloadName: string}>>([]);
+
   const [previewMonitorVideo, setPreviewMonitorVideo] = useState<{ url: string; params: { duration: number; resolution: string; ratio: string } } | null>(null);
   const [canCancel, setCanCancel] = useState<boolean>(false);
 
@@ -167,6 +179,83 @@ export default function TransitionVideoGenerator() {
       setIsGeneratingVoice(false);
     }
 
+  };
+
+  // 字幕生成
+  const handleGenerateSubtitle = async () => {
+    if (!subtitleFile) {
+      setSubtitleError('请上传视频或音频文件');
+      return;
+    }
+
+    setIsGeneratingSubtitle(true);
+    setSubtitleError('');
+    setSubtitleSegments([]);
+    setSubtitleContent('');
+
+    const taskId = `subtitle_${Date.now()}`;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', subtitleFile);
+      formData.append('format', subtitleFormat);
+      formData.append('frameRate', subtitleFrameRate);
+
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '字幕生成失败');
+      }
+
+      setSubtitleSegments(data.segments);
+      setSubtitleContent(data.content);
+
+      setSubtitleHistory(prev => [{
+        id: taskId,
+        fileName: subtitleFileName,
+        format: subtitleFormat,
+        segments: data.segments.length,
+        time: new Date().toLocaleTimeString(),
+        content: data.content,
+        downloadName: data.downloadName,
+      }, ...prev].slice(0, 10));
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '字幕生成失败';
+      setSubtitleError(errorMessage);
+      console.error('字幕生成错误:', err);
+    } finally {
+      setIsGeneratingSubtitle(false);
+    }
+  };
+
+  const handleSubtitleFileUpload = useCallback((file: File) => {
+    if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/') || file.name.match(/\.(mp4|mov|avi|mkv|mp3|wav|m4a|flac)$/i))) {
+      setSubtitleFile(file);
+      setSubtitleFileName(file.name);
+      setSubtitleSegments([]);
+      setSubtitleContent('');
+      setSubtitleError('');
+    }
+  }, []);
+
+  const downloadSubtitle = (content: string, fileName: string, format: string) => {
+    const blob = new Blob([content], { type: format === 'fcpxml' ? 'application/xml' : 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const formatTimeDisplay = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
   const handleDrop = useCallback((
@@ -550,7 +639,7 @@ export default function TransitionVideoGenerator() {
 
         <Tabs defaultValue="video" className="space-y-6">
           {/* 工作流Tab切换 */}
-          <TabsList className="grid w-full grid-cols-3 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+          <TabsList className="grid w-full grid-cols-4 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
             <TabsTrigger 
               value="video" 
               className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
@@ -571,6 +660,13 @@ export default function TransitionVideoGenerator() {
             >
               <Volume2 className="w-4 h-4 mr-2" />
               音效生成
+            </TabsTrigger>
+            <TabsTrigger 
+              value="subtitle" 
+              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+            >
+              <Subtitles className="w-4 h-4 mr-2" />
+              字幕生成
             </TabsTrigger>
           </TabsList>
 
@@ -1295,6 +1391,244 @@ export default function TransitionVideoGenerator() {
                   <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
                     <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
                     <p className="text-[#FFFFFF]/30 text-xs mt-1">生成音效后将显示在这里</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* 字幕生成Tab */}
+          <TabsContent value="subtitle" className="space-y-6 mt-0">
+            {/* 文件上传区 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <FileVideo2 className="w-5 h-5 text-[#CEA472]" />
+                  文件上传
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
+                    subtitleFile 
+                      ? 'border-[#CEA472] bg-black/60' 
+                      : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
+                  }`}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleSubtitleFileUpload(file);
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => document.getElementById('subtitle-file-input')?.click()}
+                >
+                  {subtitleFile ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]">
+                      {subtitleFile.type.startsWith('video/') ? (
+                        <FileVideo2 className="w-12 h-12 mb-3 text-[#CEA472]" />
+                      ) : (
+                        <AudioLines className="w-12 h-12 mb-3 text-[#CEA472]" />
+                      )}
+                      <p className="text-sm font-medium">{subtitleFileName}</p>
+                      <p className="text-xs text-[#FFFFFF]/50 mt-1">
+                        {(subtitleFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
+                      <Upload className="w-10 h-10 mb-3" />
+                      <span className="text-sm font-medium">视频/音频文件</span>
+                      <span className="text-xs mt-1">点击或拖拽上传</span>
+                      <span className="text-xs mt-2 text-[#FFFFFF]/30">支持 MP4, MOV, MP3, WAV, M4A 等格式</span>
+                    </div>
+                  )}
+                  <input
+                    id="subtitle-file-input"
+                    type="file"
+                    accept="video/*,audio/*,.mp4,.mov,.avi,.mkv,.mp3,.wav,.m4a,.flac"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSubtitleFileUpload(file);
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 生成设置 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-[#CEA472]" />
+                  字幕设置
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 输出格式 */}
+                <div className="space-y-2">
+                  <Label className="text-[#FFFFFF]/80">输出格式</Label>
+                  <Tabs 
+                    value={subtitleFormat} 
+                    onValueChange={(value) => setSubtitleFormat(value as 'srt' | 'fcpxml')} 
+                    className="w-full"
+                  >
+                    <TabsList className="grid w-full grid-cols-2 bg-black/20 backdrop-blur-sm border border-[#CEA472]/20 rounded-lg p-1">
+                      <TabsTrigger 
+                        value="srt" 
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                      >
+                        SRT 字幕
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="fcpxml" 
+                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                      >
+                        Final Cut Pro XML
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+
+                {/* 帧率选择（仅 FCPXML 显示） */}
+                {subtitleFormat === 'fcpxml' && (
+                  <div className="space-y-2">
+                    <Label className="text-[#FFFFFF]/80">视频帧率</Label>
+                    <Select value={subtitleFrameRate} onValueChange={setSubtitleFrameRate}>
+                      <SelectTrigger className="w-full bg-black/40 backdrop-blur-sm border-[#CEA472]/30 text-[#FFFFFF] focus:border-[#CEA472]/50 focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="bg-black/60 backdrop-blur-sm border-[#CEA472]/30 min-w-[var(--radix-select-trigger-width)]">
+                        <SelectItem value="24" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">24 fps</SelectItem>
+                        <SelectItem value="25" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">25 fps</SelectItem>
+                        <SelectItem value="30" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">30 fps</SelectItem>
+                        <SelectItem value="60" className="text-[#FFFFFF] hover:bg-black/40 focus:bg-black/40 data-[highlighted]:text-[#CEA472]">60 fps</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* 错误提示 */}
+                {subtitleError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                    {subtitleError}
+                  </div>
+                )}
+
+                {/* 生成按钮 */}
+                <Button
+                  onClick={handleGenerateSubtitle}
+                  disabled={isGeneratingSubtitle || !subtitleFile}
+                  className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
+                >
+                  {isGeneratingSubtitle ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      生成字幕
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* 字幕预览区 */}
+            {subtitleSegments.length > 0 && (
+              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                    <Subtitles className="w-5 h-5 text-[#CEA472]" />
+                    字幕预览
+                    <span className="text-sm font-normal text-[#FFFFFF]/50 ml-2">
+                      共 {subtitleSegments.length} 条
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
+                    <div className="max-h-[300px] overflow-y-scroll pr-1">
+                      {subtitleSegments.map((seg) => (
+                        <div
+                          key={seg.id}
+                          className="flex gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
+                        >
+                          <span className="text-[#CEA472] shrink-0 w-24 text-xs font-mono pt-0.5">
+                            {formatTimeDisplay(seg.start)} - {formatTimeDisplay(seg.end)}
+                          </span>
+                          <p className="text-[#FFFFFF]/90 text-sm flex-1">{seg.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <Button
+                      onClick={() => downloadSubtitle(subtitleContent, `subtitle_${Date.now()}.${subtitleFormat}`, subtitleFormat)}
+                      className="w-full h-10 bg-black/40 hover:bg-[#CEA472]/20 text-[#CEA472] border border-[#CEA472]/30 font-medium rounded-xl transition-all duration-300"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      下载 {subtitleFormat.toUpperCase()} 文件
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 任务历史 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[#CEA472]" />
+                  任务历史
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {subtitleHistory.length > 0 ? (
+                  <div className="space-y-2 max-h-[400px] overflow-y-scroll pr-1">
+                    {subtitleHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 bg-black/40 border border-[#CEA472]/20 rounded-xl p-3 hover:border-[#CEA472]/40 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[#FFFFFF]/80 truncate">{item.fileName}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-[#CEA472]/10 text-[#CEA472]">
+                              {item.format.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-[#FFFFFF]/40">{item.segments} 条字幕</span>
+                            <span className="text-xs text-[#FFFFFF]/40">{item.time}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => downloadSubtitle(item.content, item.downloadName, item.format)}
+                            className="p-2 hover:bg-[#CEA472]/20 rounded-full transition-colors shrink-0 text-[#CEA472]"
+                            title="下载"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSubtitleHistory(prev => prev.filter(h => h.id !== item.id));
+                            }}
+                            className="p-2 hover:bg-red-500/20 rounded-full transition-colors shrink-0 text-red-400"
+                            title="删除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
+                    <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
+                    <p className="text-[#FFFFFF]/30 text-xs mt-1">生成字幕后将显示在这里</p>
                   </div>
                 )}
               </CardContent>
