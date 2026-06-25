@@ -13,8 +13,9 @@ interface TranscribeRequest {
   fileName?: string;
 }
 
-const VOLC_ASR_API_KEY = process.env.VOLC_ASR_API_KEY || process.env.VOLC_API_KEY || 'be9ce267-c0d2-44b1-90f6-75964c4ec8fe';
-const VOLC_ASR_URL = 'https://openspeech.bytedance.com/api/v2/asr';
+const ARK_API_KEY = process.env.ARK_API_KEY || '5beaa835-c9f1-4ac4-907c-566a2e0e268b';
+const ARK_BASE_URL = process.env.ARK_BASE_URL || 'https://ark.cn-beijing.volces.com/api/v3';
+const ARK_ASR_MODEL = process.env.ARK_ASR_MODEL || 'ep-20260625150723-xmwpq';
 
 function log(stage: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
@@ -79,36 +80,160 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 </fcpxml>`;
 }
 
-function generateMockSegments(text: string, duration: number = 30): SubtitleSegment[] {
-  const sentences = text.split(/[。！？.!?\n]+/).filter(s => s.trim().length > 0);
-  if (sentences.length === 0) {
-    return [{ id: 1, start: 0, end: duration, text: text || '这是一段示例字幕文本。' }];
-  }
+async function pollASRStatus(taskId: string, maxWaitTime: number = 180): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
+  const startTime = Date.now();
   
-  const perSegDuration = duration / sentences.length;
-  return sentences.map((sentence, index) => ({
-    id: index + 1,
-    start: index * perSegDuration,
-    end: (index + 1) * perSegDuration,
-    text: sentence.trim(),
-  }));
+  while (Date.now() - startTime < maxWaitTime * 1000) {
+    try {
+      const pollUrl = `${ARK_BASE_URL}/speech/recognition/tasks/${taskId}`;
+      log('POLL_REQUEST', '查询ASR任务状态', { url: pollUrl, taskId });
+      
+      const response = await fetch(pollUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${ARK_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        log('POLL_ERROR', '轮询状态失败', { status: response.status, error: errorText });
+        throw new Error(`轮询失败: ${response.status}`);
+      }
+
+      const data = await response.json();
+      log('POLL_RESPONSE', 'ASR任务响应', { taskId, data: JSON.stringify(data).slice(0, 500) });
+
+      const taskStatus = data.status || data.task_status || data.state || 'unknown';
+      log('POLL_STATUS', 'ASR任务状态解析', { taskId, rawStatus: data.status, parsedStatus: taskStatus });
+
+      if (taskStatus === 'succeed' || taskStatus === 'succeeded' || taskStatus === 'success' || taskStatus === 'completed') {
+        const segments = parseASRSegments(data);
+        log('POLL_SUCCESS', 'ASR任务成功', { taskId, segments: segments.length });
+        return { status: 'succeeded', segments };
+      } else if (taskStatus === 'failed' || taskStatus === 'fail' || taskStatus === 'error') {
+        const errorMsg = data.error?.message || data.message || data.error || 'ASR任务失败';
+        log('POLL_FAILED', 'ASR任务失败', { taskId, error: errorMsg });
+        return { status: 'failed', error: errorMsg };
+      } else if (taskStatus === 'cancelled' || taskStatus === 'cancel') {
+        log('POLL_CANCELLED', 'ASR任务取消', { taskId });
+        return { status: 'cancelled', error: '任务已取消' };
+      }
+
+      log('POLL_RUNNING', 'ASR任务进行中，继续等待', { taskId, status: taskStatus });
+
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } catch (error) {
+      log('POLL_ERROR', '轮询异常', { error: String(error) });
+      throw error;
+    }
+  }
+
+  log('POLL_TIMEOUT', 'ASR任务超时', { taskId, maxWaitTime });
+  return { status: 'running', error: '任务超时' };
 }
 
-async function transcribeWithMock(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
-  log('MOCK_TRANSCRIBE', '使用模拟转写', { fileName });
+function parseASRSegments(data: Record<string, unknown>): SubtitleSegment[] {
+  const result: SubtitleSegment[] = [];
   
-  await new Promise(resolve => setTimeout(resolve, 3000));
+  try {
+    const resultData = data.result as Record<string, unknown> || {};
+    const outputData = data.output as Record<string, unknown> || {};
+    
+    const alternatives = resultData.alternatives || outputData.alternatives || data.alternatives;
+    if (Array.isArray(alternatives) && alternatives.length > 0) {
+      const firstAlternative = alternatives[0] as Record<string, unknown>;
+      const words = firstAlternative.words || firstAlternative.segments || firstAlternative.items;
+      
+      if (Array.isArray(words)) {
+        words.forEach((word: Record<string, unknown>, index: number) => {
+          const start = typeof word.start === 'number' ? word.start : 
+                       typeof word.begin_time === 'number' ? word.begin_time / 1000 : 
+                       typeof word.start_time === 'number' ? word.start_time : 
+                       index * 2;
+          const end = typeof word.end === 'number' ? word.end : 
+                     typeof word.end_time === 'number' ? word.end_time / 1000 : 
+                     typeof word.duration === 'number' ? start + (word.duration / 1000) : 
+                     start + 2;
+          const text = word.text || word.word || '';
+          
+          if (text && typeof text === 'string') {
+            result.push({
+              id: index + 1,
+              start: parseFloat(start.toFixed(3)),
+              end: parseFloat(end.toFixed(3)),
+              text: text.trim(),
+            });
+          }
+        });
+      } else {
+        const text = firstAlternative.text || resultData.text || '';
+        if (text) {
+          result.push({ id: 1, start: 0, end: 30, text: String(text) });
+        }
+      }
+    } else {
+      const text = resultData.text || outputData.text || '';
+      if (text) {
+        result.push({ id: 1, start: 0, end: 30, text: String(text) });
+      }
+    }
+  } catch (e) {
+    log('PARSE_ERROR', '解析ASR结果失败', { error: String(e) });
+  }
   
-  const mockTexts = [
-    '欢迎使用智能字幕生成系统。本系统支持视频和音频文件的自动转写。',
-    '通过先进的语音识别技术，我们可以将语音内容快速转换为文字。',
-    '生成的字幕可以导出为SRT格式或Final Cut Pro XML格式，方便后期编辑使用。',
-    '您可以根据需要调整帧率设置，以适配不同的视频项目。',
-    '感谢您的使用，如有问题请随时联系我们。',
-  ];
+  return result.length > 0 ? result : [{ id: 1, start: 0, end: 30, text: '未识别到语音内容' }];
+}
+
+async function transcribeWithVolcARK(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
+  log('ARK_TRANSCRIBE', '使用火山方舟ASR转写', { fileName, model: ARK_ASR_MODEL });
   
-  const fullText = mockTexts.join(' ');
-  return generateMockSegments(fullText, 25);
+  const requestBody = {
+    model: ARK_ASR_MODEL,
+    audio_url: fileUrl,
+    language: 'zh',
+    enable_word_timestamp: true,
+  };
+
+  log('ARK_API_CALL', '调用火山方舟ASR API', {
+    url: `${ARK_BASE_URL}/speech/recognition/tasks`,
+    model: ARK_ASR_MODEL,
+    audioUrl: fileUrl.slice(0, 50) + '...',
+  });
+
+  const response = await fetch(`${ARK_BASE_URL}/speech/recognition/tasks`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${ARK_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    log('ARK_API_ERROR', 'ASR API调用失败', { status: response.status, error: errorText });
+    throw new Error(`ASR API调用失败: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  log('ARK_API_RESPONSE', 'ASR API响应', data);
+
+  const taskId = data.id || data.task_id;
+  if (!taskId) {
+    log('ARK_API_ERROR', '未获取到ASR任务ID', { response: data });
+    throw new Error('未获取到ASR任务ID');
+  }
+
+  log('ARK_POLLING', '开始轮询ASR任务状态', { taskId });
+  const result = await pollASRStatus(taskId, 180);
+
+  if (result.status !== 'succeeded') {
+    throw new Error(result.error || 'ASR转写失败');
+  }
+
+  return result.segments || [];
 }
 
 export async function POST(request: NextRequest) {
@@ -166,9 +291,9 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    log('TRANSCRIBE_START', '开始转写', { fileName, format, frameRate });
+    log('TRANSCRIBE_START', '开始转写', { fileName, format, frameRate, model: ARK_ASR_MODEL });
     
-    const segments = await transcribeWithMock(fileUrl, fileName || 'unknown');
+    const segments = await transcribeWithVolcARK(fileUrl, fileName || 'unknown');
     
     let content: string;
     let contentType: string;
