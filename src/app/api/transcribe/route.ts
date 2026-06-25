@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
+import { spawn } from 'child_process';
+import { writeFile, unlink, mkdir, readFile } from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 interface SubtitleSegment {
   id: number;
@@ -103,6 +107,95 @@ function getAudioFormat(fileName: string): string {
     'raw': 'raw',
   };
   return formatMap[ext] || 'mp3';
+}
+
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ts', 'mts']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'raw']);
+
+function isVideoFile(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return VIDEO_EXTENSIONS.has(ext);
+}
+
+function isAudioFile(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return AUDIO_EXTENSIONS.has(ext);
+}
+
+async function ensureTempDir(): Promise<string> {
+  const tempDir = join(tmpdir(), 'transcribe-temp');
+  try {
+    await mkdir(tempDir, { recursive: true });
+  } catch (e) {
+    // directory may already exist
+  }
+  return tempDir;
+}
+
+async function extractAudioFromVideo(inputBuffer: Buffer, inputFileName: string): Promise<{ buffer: Buffer; fileName: string }> {
+  const tempDir = await ensureTempDir();
+  const timestamp = Date.now();
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  
+  const baseName = inputFileName.replace(/\.[^.]+$/, '');
+  const inputPath = join(tempDir, `${timestamp}_${randomSuffix}_input.${inputFileName.split('.').pop()}`);
+  const outputPath = join(tempDir, `${timestamp}_${randomSuffix}_output.mp3`);
+  const outputFileName = `${baseName}.mp3`;
+  
+  log('AUDIO_EXTRACT', '开始从视频提取音频', { inputFileName, outputFileName });
+  
+  try {
+    await writeFile(inputPath, inputBuffer);
+    
+    const ffmpegProcess = spawn('ffmpeg', [
+      '-i', inputPath,
+      '-vn',
+      '-acodec', 'libmp3lame',
+      '-ab', '128k',
+      '-ar', '44100',
+      '-ac', '2',
+      '-y',
+      outputPath,
+    ]);
+    
+    let stderr = '';
+    ffmpegProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    await new Promise<void>((resolve, reject) => {
+      ffmpegProcess.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+      ffmpegProcess.on('error', (err) => {
+        reject(err);
+      });
+    });
+    
+    const outputBuffer = await readFile(outputPath);
+    
+    log('AUDIO_EXTRACT_DONE', '音频提取完成', { 
+      inputSize: `${(inputBuffer.length / 1024).toFixed(2)}KB`,
+      outputSize: `${(outputBuffer.length / 1024).toFixed(2)}KB`,
+      outputFileName,
+    });
+    
+    return { buffer: Buffer.from(outputBuffer), fileName: outputFileName };
+  } catch (error) {
+    log('AUDIO_EXTRACT_ERROR', '音频提取失败', { error: error instanceof Error ? error.message : 'Unknown error' });
+    throw error;
+  } finally {
+    try {
+      await unlink(inputPath).catch(() => {});
+      await unlink(outputPath).catch(() => {});
+    } catch (e) {
+      // ignore cleanup errors
+    }
+  }
 }
 
 function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
@@ -307,7 +400,16 @@ export async function POST(request: NextRequest) {
       log('FILE_INFO', '文件信息', { name: file.name, size: `${(file.size / 1024).toFixed(2)}KB`, type: file.type });
       
       const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      let buffer: Buffer = Buffer.from(arrayBuffer);
+      let currentFileName = file.name;
+      
+      if (isVideoFile(file.name)) {
+        log('VIDEO_DETECTED', '检测到视频文件，开始提取音频', { fileName: file.name });
+        const extractResult = await extractAudioFromVideo(buffer, file.name);
+        buffer = extractResult.buffer;
+        currentFileName = extractResult.fileName;
+        log('AUDIO_EXTRACTED', '音频提取成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
+      }
       
       const storage = new S3Storage({
         endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
@@ -319,19 +421,19 @@ export async function POST(request: NextRequest) {
       
       const timestamp = Date.now();
       const randomSuffix = Math.random().toString(36).slice(2, 8);
-      const ext = file.name.split('.').pop() || 'mp3';
+      const ext = currentFileName.split('.').pop() || 'mp3';
       const keyName = `subtitles/${timestamp}_${randomSuffix}.${ext}`;
       
       const key = await storage.uploadFile({
         fileContent: buffer,
         fileName: keyName,
-        contentType: file.type,
+        contentType: `audio/${ext === 'mp3' ? 'mpeg' : ext}`,
       });
       
       fileUrl = await storage.generatePresignedUrl({ key, expireTime: 7200 });
-      fileName = file.name;
+      fileName = currentFileName;
       
-      log('UPLOAD_DONE', '文件上传完成', { key });
+      log('UPLOAD_DONE', '文件上传完成', { key, fileName: currentFileName });
     } else {
       const body = await request.json().catch(() => ({}));
       fileUrl = (body as TranscribeRequest).fileUrl;
