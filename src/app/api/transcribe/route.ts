@@ -99,9 +99,6 @@ function getAudioFormat(fileName: string): string {
   const formatMap: Record<string, string> = {
     'mp3': 'mp3',
     'wav': 'wav',
-    'm4a': 'mp4',
-    'mp4': 'mp4',
-    'mov': 'mp4',
     'ogg': 'ogg',
     'opus': 'opus',
     'raw': 'raw',
@@ -109,8 +106,9 @@ function getAudioFormat(fileName: string): string {
   return formatMap[ext] || 'mp3';
 }
 
+const SUPPORTED_AUDIO_FORMATS = new Set(['mp3', 'wav', 'ogg', 'raw']);
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ts', 'mts']);
-const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'raw']);
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'raw', 'wma', 'amr']);
 
 function isVideoFile(fileName: string): boolean {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -120,6 +118,11 @@ function isVideoFile(fileName: string): boolean {
 function isAudioFile(fileName: string): boolean {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   return AUDIO_EXTENSIONS.has(ext);
+}
+
+function needsAudioConversion(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return !SUPPORTED_AUDIO_FORMATS.has(ext);
 }
 
 async function ensureTempDir(): Promise<string> {
@@ -455,6 +458,12 @@ export async function POST(request: NextRequest) {
         buffer = extractResult.buffer;
         currentFileName = extractResult.fileName;
         log('AUDIO_EXTRACTED', '音频提取成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
+      } else if (needsAudioConversion(file.name)) {
+        log('AUDIO_CONVERT', '检测到不支持的音频格式，开始转换为MP3', { fileName: file.name });
+        const convertResult = await extractAudioFromVideo(buffer, file.name);
+        buffer = convertResult.buffer;
+        currentFileName = convertResult.fileName;
+        log('AUDIO_CONVERTED', '音频格式转换成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
       }
       
       const storage = new S3Storage({
@@ -499,13 +508,22 @@ export async function POST(request: NextRequest) {
       let audioBuffer: Buffer = downloadedBuffer;
       let audioFileName = urlFileName;
       
-      // 如果是视频文件，需要提取音频
+      // 如果是视频文件或不支持的音频格式，需要转换
       if (isVideoFile(urlFileName)) {
         log('VIDEO_URL_DETECTED', 'URL模式检测到视频文件，开始提取音频');
         const extractResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
         audioBuffer = extractResult.buffer;
         audioFileName = extractResult.fileName;
         log('URL_AUDIO_EXTRACTED', 'URL模式音频提取成功', { 
+          audioName: audioFileName, 
+          audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
+        });
+      } else if (needsAudioConversion(urlFileName)) {
+        log('AUDIO_URL_CONVERT', 'URL模式检测到不支持的音频格式，开始转换为MP3');
+        const convertResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
+        audioBuffer = convertResult.buffer;
+        audioFileName = convertResult.fileName;
+        log('URL_AUDIO_CONVERTED', 'URL模式音频格式转换成功', { 
           audioName: audioFileName, 
           audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
         });
