@@ -383,15 +383,48 @@ async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Prom
   throw new Error('ASR转写超时，请稍后重试');
 }
 
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 minutes timeout
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  log('REQUEST', '收到字幕生成请求');
+  log('REQUEST', '收到字幕生成请求', { contentType: request.headers.get('content-type') });
   
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const format = formData.get('format') as string || 'srt';
-    const frameRate = parseInt(formData.get('frameRate') as string || '30', 10);
+    const contentType = request.headers.get('content-type') || '';
+    log('REQUEST_HEADERS', '请求头信息', { 
+      contentType, 
+      contentLength: request.headers.get('content-length'),
+      accept: request.headers.get('accept')
+    });
+    let file: File | null = null;
+    let format = 'srt';
+    let frameRate = 30;
+    let videoUrl: string | null = null;
+    
+    if (contentType.includes('multipart/form-data')) {
+      try {
+        const formData = await request.formData();
+        file = formData.get('file') as File | null;
+        format = (formData.get('format') as string) || 'srt';
+        frameRate = parseInt((formData.get('frameRate') as string) || '30', 10);
+        videoUrl = formData.get('videoUrl') as string | null;
+        log('FORMDATA_PARSED', 'FormData解析成功', { hasFile: !!file, format, frameRate, hasVideoUrl: !!videoUrl });
+      } catch (e) {
+        log('FORMDATA_ERROR', 'FormData解析失败', { error: String(e) });
+        return NextResponse.json({ success: false, error: 'FormData解析失败，请重试' }, { status: 400 });
+      }
+    } else if (contentType.includes('application/json')) {
+      const body = await request.json();
+      videoUrl = body.videoUrl || null;
+      format = body.format || 'srt';
+      frameRate = body.frameRate || 30;
+      log('JSON_PARSED', 'JSON解析成功', { videoUrl, format, frameRate });
+    } else {
+      log('CONTENT_TYPE_ERROR', '不支持的Content-Type', { contentType });
+      return NextResponse.json({ success: false, error: `不支持的Content-Type: ${contentType}` }, { status: 400 });
+    }
     
     let fileUrl: string | undefined;
     let fileName: string | undefined;
@@ -434,10 +467,10 @@ export async function POST(request: NextRequest) {
       fileName = currentFileName;
       
       log('UPLOAD_DONE', '文件上传完成', { key, fileName: currentFileName });
-    } else {
-      const body = await request.json().catch(() => ({}));
-      fileUrl = (body as TranscribeRequest).fileUrl;
-      fileName = (body as TranscribeRequest).fileName;
+    } else if (videoUrl) {
+      fileUrl = videoUrl;
+      fileName = videoUrl.split('/').pop() || 'unknown';
+      log('URL_MODE', '使用URL模式', { videoUrl, fileName });
     }
     
     if (!fileUrl) {
@@ -452,16 +485,16 @@ export async function POST(request: NextRequest) {
     const segments = await transcribeWithVolcSpeech(fileUrl, fileName || 'unknown');
     
     let content: string;
-    let contentType: string;
+    let responseContentType: string;
     let downloadName: string;
     
     if (format === 'fcpxml') {
       content = generateFCPXML(segments, frameRate);
-      contentType = 'application/xml';
+      responseContentType = 'application/xml';
       downloadName = `subtitle_${Date.now()}.fcpxml`;
     } else {
       content = generateSRT(segments);
-      contentType = 'text/plain; charset=utf-8';
+      responseContentType = 'text/plain; charset=utf-8';
       downloadName = `subtitle_${Date.now()}.srt`;
     }
     
@@ -481,11 +514,21 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: error instanceof Error ? error.message : 'Unknown error' });
+    const errorMsg = error instanceof Error ? error.message : '转写失败，请重试';
+    const errorStack = error instanceof Error ? error.stack : '';
+    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: errorMsg, stack: errorStack });
+    console.error('[TRANSCRIBE] Fatal error:', errorMsg, errorStack);
     
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : '转写失败，请重试' },
-      { status: 500 }
-    );
+    try {
+      return NextResponse.json(
+        { success: false, error: errorMsg },
+        { status: 500 }
+      );
+    } catch {
+      return new NextResponse(JSON.stringify({ success: false, error: errorMsg }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 }
