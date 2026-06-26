@@ -196,23 +196,52 @@ export default function TransitionVideoGenerator() {
     const taskId = `subtitle_${Date.now()}`;
 
     try {
-      // Step 1: 上传文件到 S3
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', subtitleFile);
+      // Step 1: 分块上传文件到 S3（绕过反向代理 body size 限制）
+      const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB per chunk
+      const totalChunks = Math.ceil(subtitleFile.size / CHUNK_SIZE);
+      const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-      const uploadResponse = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadFormData,
-      });
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, subtitleFile.size);
+        const chunkBlob = subtitleFile.slice(start, end);
 
-      const uploadData = await uploadResponse.json();
-      if (!uploadResponse.ok || !uploadData.success) {
-        throw new Error(uploadData.error || '文件上传失败');
+        const chunkFormData = new FormData();
+        chunkFormData.append('uploadId', uploadId);
+        chunkFormData.append('chunkIndex', String(i));
+        chunkFormData.append('totalChunks', String(totalChunks));
+        chunkFormData.append('chunk', chunkBlob, subtitleFile.name);
+
+        const chunkResponse = await fetch('/api/upload-chunk', {
+          method: 'POST',
+          body: chunkFormData,
+        });
+
+        const chunkData = await chunkResponse.json();
+        if (!chunkResponse.ok || !chunkData.success) {
+          throw new Error(`分块 ${i + 1}/${totalChunks} 上传失败: ${chunkData.error || '未知错误'}`);
+        }
       }
 
-      const videoUrl = uploadData.url;
+      // Step 2: 组装分块并上传到 S3
+      const completeResponse = await fetch('/api/upload-complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId,
+          fileName: subtitleFile.name,
+          contentType: subtitleFile.type,
+        }),
+      });
 
-      // Step 2: 调用转写 API
+      const completeData = await completeResponse.json();
+      if (!completeResponse.ok || !completeData.success) {
+        throw new Error(completeData.error || '文件组装上传失败');
+      }
+
+      const videoUrl = completeData.url;
+
+      // Step 3: 调用转写 API
       const response = await fetch('/api/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
