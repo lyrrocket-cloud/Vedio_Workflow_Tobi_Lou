@@ -32,20 +32,21 @@ export async function POST(request: NextRequest) {
     // Validate file type
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
-    if (!isImage && !isVideo) {
+    const isAudio = file.type.startsWith('audio/');
+    if (!isImage && !isVideo && !isAudio) {
       log('ERROR', '文件类型不支持', { type: file.type });
       return NextResponse.json(
-        { success: false, error: '只支持图片或视频文件上传' },
+        { success: false, error: '只支持图片、视频或音频文件上传' },
         { status: 400 }
       );
     }
 
-    // Validate file size (image: max 10MB, video: max 500MB)
-    const maxSize = isVideo ? 500 * 1024 * 1024 : 10 * 1024 * 1024;
+    // Validate file size (image: max 10MB, video: max 500MB, audio: max 100MB)
+    const maxSize = isVideo ? 500 * 1024 * 1024 : isAudio ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
     if (file.size > maxSize) {
       log('ERROR', '文件大小超限', { size: file.size, maxSize });
       return NextResponse.json(
-        { success: false, error: `${isVideo ? '视频' : '图片'}文件大小不能超过${isVideo ? '500MB' : '10MB'}` },
+        { success: false, error: `${isVideo ? '视频' : isAudio ? '音频' : '图片'}文件大小不能超过${isVideo ? '500MB' : isAudio ? '100MB' : '10MB'}` },
         { status: 400 }
       );
     }
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).slice(2, 8);
     const ext = file.name.split('.').pop() || 'jpg';
-    const folder = isVideo ? 'videos' : 'transition-frames';
+    const folder = isVideo ? 'videos' : isAudio ? 'audios' : 'transition-frames';
     const fileName = `${folder}/${timestamp}_${randomSuffix}.${ext}`;
     log('FILENAME', '生成文件名', { fileName });
 

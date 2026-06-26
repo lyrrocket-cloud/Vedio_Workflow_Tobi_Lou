@@ -231,6 +231,10 @@ export default function TransitionVideoGenerator() {
       setSubtitleSegments(data.segments);
       setSubtitleContent(data.content);
 
+      if (data.warning) {
+        setSubtitleError(data.warning);
+      }
+
       setSubtitleHistory(prev => [{
         id: taskId,
         fileName: subtitleFileName,

@@ -351,6 +351,10 @@ async function queryASRResult(requestId: string): Promise<{ status: string; segm
     return { status: 'running' };
   } else {
     log('QUERY_FAILED', 'ASR任务失败', { statusCode, message });
+    // "无有效语音"属于正常业务结果，不视为服务错误
+    if (message && message.includes('no valid speech')) {
+      return { status: 'succeeded', segments: [] };
+    }
     return { status: 'failed', error: message || `错误码: ${statusCode}` };
   }
 }
@@ -360,7 +364,16 @@ async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Prom
   
   const requestId = generateUUID();
   
-  await submitASRTask(fileUrl, fileName, requestId);
+  try {
+    await submitASRTask(fileUrl, fileName, requestId);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    // "无有效语音" 属于正常业务结果，不视为提交错误
+    if (errorMsg.includes('no valid speech')) {
+      return [];
+    }
+    throw error;
+  }
   
   log('POLLING_START', '开始轮询ASR结果', { requestId });
   
@@ -394,7 +407,7 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
     log('REQUEST_HEADERS', '请求头信息', { 
-      contentType, 
+      contentType,
       contentLength: request.headers.get('content-length'),
       accept: request.headers.get('accept')
     });
@@ -468,9 +481,60 @@ export async function POST(request: NextRequest) {
       
       log('UPLOAD_DONE', '文件上传完成', { key, fileName: currentFileName });
     } else if (videoUrl) {
-      fileUrl = videoUrl;
-      fileName = videoUrl.split('/').pop() || 'unknown';
-      log('URL_MODE', '使用URL模式', { videoUrl, fileName });
+      // URL 模式：需要下载视频并提取音频（ASR API 只接受音频文件）
+      log('URL_MODE', '使用URL模式，开始下载远程文件', { videoUrl: videoUrl.slice(0, 80) + '...' });
+      
+      const downloadResponse = await fetch(videoUrl);
+      if (!downloadResponse.ok) {
+        throw new Error(`下载远程文件失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
+      }
+      
+      const downloadedBuffer = Buffer.from(await downloadResponse.arrayBuffer());
+      const urlFileName = videoUrl.split('/').pop() || 'unknown.mp4';
+      log('DOWNLOAD_DONE', '远程文件下载完成', { 
+        fileName: urlFileName, 
+        size: `${(downloadedBuffer.length / 1024).toFixed(2)}KB` 
+      });
+      
+      let audioBuffer: Buffer = downloadedBuffer;
+      let audioFileName = urlFileName;
+      
+      // 如果是视频文件，需要提取音频
+      if (isVideoFile(urlFileName)) {
+        log('VIDEO_URL_DETECTED', 'URL模式检测到视频文件，开始提取音频');
+        const extractResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
+        audioBuffer = extractResult.buffer;
+        audioFileName = extractResult.fileName;
+        log('URL_AUDIO_EXTRACTED', 'URL模式音频提取成功', { 
+          audioName: audioFileName, 
+          audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
+        });
+      }
+      
+      // 上传音频文件到 S3（ASR 需要可访问的音频 URL）
+      const storage = new S3Storage({
+        endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+        accessKey: '',
+        secretKey: '',
+        bucketName: process.env.COZE_BUCKET_NAME,
+        region: 'cn-beijing',
+      });
+      
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).slice(2, 8);
+      const ext = audioFileName.split('.').pop() || 'mp3';
+      const keyName = `subtitles/${timestamp}_${randomSuffix}.${ext}`;
+      
+      const key = await storage.uploadFile({
+        fileContent: audioBuffer,
+        fileName: keyName,
+        contentType: `audio/${ext === 'mp3' ? 'mpeg' : ext}`,
+      });
+      
+      fileUrl = await storage.generatePresignedUrl({ key, expireTime: 7200 });
+      fileName = audioFileName;
+      
+      log('URL_UPLOAD_DONE', 'URL模式音频上传完成', { key, fileName: audioFileName });
     }
     
     if (!fileUrl) {
@@ -506,10 +570,11 @@ export async function POST(request: NextRequest) {
       segments,
       format,
       content,
-      contentType,
+      contentType: responseContentType,
       downloadName,
       frameRate: format === 'fcpxml' ? frameRate : undefined,
       duration: segments.length > 0 ? segments[segments.length - 1].end : 0,
+      warning: segments.length === 0 ? '未检测到语音内容，请确认文件中包含有效语音' : undefined,
     });
     
   } catch (error) {
