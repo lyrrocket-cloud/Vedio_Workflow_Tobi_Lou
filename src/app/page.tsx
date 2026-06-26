@@ -196,14 +196,31 @@ export default function TransitionVideoGenerator() {
     const taskId = `subtitle_${Date.now()}`;
 
     try {
-      const formData = new FormData();
-      formData.append('file', subtitleFile);
-      formData.append('format', subtitleFormat);
-      formData.append('frameRate', subtitleFrameRate);
+      // Step 1: 上传文件到 S3
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', subtitleFile);
 
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      const uploadData = await uploadResponse.json();
+      if (!uploadResponse.ok || !uploadData.success) {
+        throw new Error(uploadData.error || '文件上传失败');
+      }
+
+      const videoUrl = uploadData.url;
+
+      // Step 2: 调用转写 API
       const response = await fetch('/api/transcribe', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl,
+          format: subtitleFormat,
+          frameRate: subtitleFrameRate,
+        }),
       });
 
       const data = await response.json();

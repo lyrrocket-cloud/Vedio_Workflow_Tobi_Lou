@@ -30,19 +30,22 @@ export async function POST(request: NextRequest) {
     });
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
       log('ERROR', '文件类型不支持', { type: file.type });
       return NextResponse.json(
-        { success: false, error: '只支持图片文件上传' },
+        { success: false, error: '只支持图片或视频文件上传' },
         { status: 400 }
       );
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      log('ERROR', '文件大小超限', { size: file.size });
+    // Validate file size (image: max 10MB, video: max 500MB)
+    const maxSize = isVideo ? 500 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      log('ERROR', '文件大小超限', { size: file.size, maxSize });
       return NextResponse.json(
-        { success: false, error: '图片文件大小不能超过10MB' },
+        { success: false, error: `${isVideo ? '视频' : '图片'}文件大小不能超过${isVideo ? '500MB' : '10MB'}` },
         { status: 400 }
       );
     }
@@ -71,7 +74,8 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).slice(2, 8);
     const ext = file.name.split('.').pop() || 'jpg';
-    const fileName = `transition-frames/${timestamp}_${randomSuffix}.${ext}`;
+    const folder = isVideo ? 'videos' : 'transition-frames';
+    const fileName = `${folder}/${timestamp}_${randomSuffix}.${ext}`;
     log('FILENAME', '生成文件名', { fileName });
 
     // Upload to object storage
