@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import { writeFile, unlink, mkdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -125,6 +125,45 @@ function needsAudioConversion(fileName: string): boolean {
   return !SUPPORTED_AUDIO_FORMATS.has(ext);
 }
 
+let ffmpegAvailable: boolean | null = null;
+let ffmpegCheckPromise: Promise<boolean> | null = null;
+
+async function checkFFmpeg(): Promise<boolean> {
+  if (ffmpegAvailable !== null) return ffmpegAvailable;
+  
+  if (ffmpegCheckPromise) return ffmpegCheckPromise;
+  
+  ffmpegCheckPromise = (async () => {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        try {
+          const child = execFile('ffmpeg', ['-version'], (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+          child.on('error', (err) => {
+            reject(err);
+          });
+        } catch (e) {
+          reject(e);
+        }
+      });
+      ffmpegAvailable = true;
+      log('FFMPEG_CHECK', 'ffmpeg 可用');
+    } catch (e) {
+      ffmpegAvailable = false;
+      const errMsg = e instanceof Error ? e.message : String(e);
+      log('FFMPEG_CHECK', 'ffmpeg 不可用', { error: errMsg });
+    } finally {
+      ffmpegCheckPromise = null;
+    }
+    
+    return ffmpegAvailable as boolean;
+  })();
+  
+  return ffmpegCheckPromise;
+}
+
 async function ensureTempDir(): Promise<string> {
   const tempDir = join(tmpdir(), 'transcribe-temp');
   try {
@@ -141,25 +180,39 @@ async function extractAudioFromVideo(inputBuffer: Buffer, inputFileName: string)
   const randomSuffix = Math.random().toString(36).slice(2, 8);
   
   const baseName = inputFileName.replace(/\.[^.]+$/, '');
-  const inputPath = join(tempDir, `${timestamp}_${randomSuffix}_input.${inputFileName.split('.').pop()}`);
+  const ext = inputFileName.split('.').pop() || 'mp4';
+  const inputPath = join(tempDir, `${timestamp}_${randomSuffix}_input.${ext}`);
   const outputPath = join(tempDir, `${timestamp}_${randomSuffix}_output.mp3`);
   const outputFileName = `${baseName}.mp3`;
   
   log('AUDIO_EXTRACT', '开始从视频提取音频', { inputFileName, outputFileName });
   
+  let inputCleaned = false;
+  let outputCleaned = false;
+  
   try {
     await writeFile(inputPath, inputBuffer);
+    inputCleaned = false;
     
-    const ffmpegProcess = spawn('ffmpeg', [
-      '-i', inputPath,
-      '-vn',
-      '-acodec', 'libmp3lame',
-      '-ab', '128k',
-      '-ar', '44100',
-      '-ac', '2',
-      '-y',
-      outputPath,
-    ]);
+    let ffmpegProcess;
+    try {
+      ffmpegProcess = spawn('ffmpeg', [
+        '-i', inputPath,
+        '-vn',
+        '-acodec', 'libmp3lame',
+        '-ab', '128k',
+        '-ar', '44100',
+        '-ac', '2',
+        '-y',
+        outputPath,
+      ]);
+    } catch (spawnError) {
+      if (spawnError instanceof Error && (spawnError as NodeJS.ErrnoException).code === 'ENOENT') {
+        log('FFMPEG_NOT_FOUND', 'spawn ffmpeg 失败，ffmpeg 未找到', { error: spawnError.message });
+        throw new Error('当前环境缺少 FFmpeg 工具，无法处理视频/音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。');
+      }
+      throw spawnError;
+    }
     
     let stderr = '';
     ffmpegProcess.stderr.on('data', (data) => {
@@ -175,11 +228,17 @@ async function extractAudioFromVideo(inputBuffer: Buffer, inputFileName: string)
         }
       });
       ffmpegProcess.on('error', (err) => {
-        reject(err);
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          log('FFMPEG_NOT_FOUND', 'ffmpeg 进程启动失败，未找到可执行文件', { error: err.message });
+          reject(new Error('当前环境缺少 FFmpeg 工具，无法处理视频/音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。'));
+        } else {
+          reject(err);
+        }
       });
     });
     
     const outputBuffer = await readFile(outputPath);
+    outputCleaned = false;
     
     log('AUDIO_EXTRACT_DONE', '音频提取完成', { 
       inputSize: `${(inputBuffer.length / 1024).toFixed(2)}KB`,
@@ -194,7 +253,13 @@ async function extractAudioFromVideo(inputBuffer: Buffer, inputFileName: string)
   } finally {
     try {
       await unlink(inputPath).catch(() => {});
+      inputCleaned = true;
+    } catch (e) {
+      // ignore cleanup errors
+    }
+    try {
       await unlink(outputPath).catch(() => {});
+      outputCleaned = true;
     } catch (e) {
       // ignore cleanup errors
     }
@@ -452,18 +517,31 @@ export async function POST(request: NextRequest) {
       let buffer: Buffer = Buffer.from(arrayBuffer);
       let currentFileName = file.name;
       
+      const hasFFmpeg = await checkFFmpeg();
+      
       if (isVideoFile(file.name)) {
+        if (!hasFFmpeg) {
+          log('VIDEO_NO_FFMPEG', '检测到视频文件但ffmpeg不可用，无法提取音频', { fileName: file.name });
+          return NextResponse.json(
+            { success: false, error: '当前环境不支持视频文件处理，请上传MP3/WAV/OGG格式的音频文件' },
+            { status: 400 }
+          );
+        }
         log('VIDEO_DETECTED', '检测到视频文件，开始提取音频', { fileName: file.name });
         const extractResult = await extractAudioFromVideo(buffer, file.name);
         buffer = extractResult.buffer;
         currentFileName = extractResult.fileName;
         log('AUDIO_EXTRACTED', '音频提取成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
       } else if (needsAudioConversion(file.name)) {
-        log('AUDIO_CONVERT', '检测到不支持的音频格式，开始转换为MP3', { fileName: file.name });
-        const convertResult = await extractAudioFromVideo(buffer, file.name);
-        buffer = convertResult.buffer;
-        currentFileName = convertResult.fileName;
-        log('AUDIO_CONVERTED', '音频格式转换成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
+        if (!hasFFmpeg) {
+          log('AUDIO_NO_FFMPEG', '检测到不支持的音频格式且ffmpeg不可用，尝试直接上传', { fileName: file.name });
+        } else {
+          log('AUDIO_CONVERT', '检测到不支持的音频格式，开始转换为MP3', { fileName: file.name });
+          const convertResult = await extractAudioFromVideo(buffer, file.name);
+          buffer = convertResult.buffer;
+          currentFileName = convertResult.fileName;
+          log('AUDIO_CONVERTED', '音频格式转换成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
+        }
       }
       
       const storage = new S3Storage({
@@ -508,8 +586,17 @@ export async function POST(request: NextRequest) {
       let audioBuffer: Buffer = downloadedBuffer;
       let audioFileName = urlFileName;
       
+      const hasFFmpeg = await checkFFmpeg();
+      
       // 如果是视频文件或不支持的音频格式，需要转换
       if (isVideoFile(urlFileName)) {
+        if (!hasFFmpeg) {
+          log('VIDEO_URL_NO_FFMPEG', 'URL模式检测到视频文件但ffmpeg不可用', { fileName: urlFileName });
+          return NextResponse.json(
+            { success: false, error: '当前环境不支持视频文件处理，请提供MP3/WAV/OGG格式的音频文件URL' },
+            { status: 400 }
+          );
+        }
         log('VIDEO_URL_DETECTED', 'URL模式检测到视频文件，开始提取音频');
         const extractResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
         audioBuffer = extractResult.buffer;
@@ -519,14 +606,18 @@ export async function POST(request: NextRequest) {
           audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
         });
       } else if (needsAudioConversion(urlFileName)) {
-        log('AUDIO_URL_CONVERT', 'URL模式检测到不支持的音频格式，开始转换为MP3');
-        const convertResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
-        audioBuffer = convertResult.buffer;
-        audioFileName = convertResult.fileName;
-        log('URL_AUDIO_CONVERTED', 'URL模式音频格式转换成功', { 
-          audioName: audioFileName, 
-          audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
-        });
+        if (!hasFFmpeg) {
+          log('AUDIO_URL_NO_FFMPEG', 'URL模式检测到不支持的音频格式且ffmpeg不可用，尝试直接上传', { fileName: urlFileName });
+        } else {
+          log('AUDIO_URL_CONVERT', 'URL模式检测到不支持的音频格式，开始转换为MP3');
+          const convertResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
+          audioBuffer = convertResult.buffer;
+          audioFileName = convertResult.fileName;
+          log('URL_AUDIO_CONVERTED', 'URL模式音频格式转换成功', { 
+            audioName: audioFileName, 
+            audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
+          });
+        }
       }
       
       // 上传音频文件到 S3（ASR 需要可访问的音频 URL）
@@ -599,17 +690,27 @@ export async function POST(request: NextRequest) {
     const totalTime = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : '转写失败，请重试';
     const errorStack = error instanceof Error ? error.stack : '';
-    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: errorMsg, stack: errorStack });
+    
+    let displayError = errorMsg;
+    let statusCode = 500;
+    
+    if (errorMsg.includes('ENOENT') || errorMsg.includes('spawn ffmpeg') || errorMsg.includes('缺少 FFmpeg')) {
+      displayError = '当前环境缺少 FFmpeg 工具，无法处理视频文件或音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。';
+      statusCode = 400;
+      log('FFMPEG_ERROR', '检测到 FFmpeg 相关错误，返回友好提示', { originalError: errorMsg });
+    }
+    
+    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: displayError, originalError: errorMsg });
     console.error('[TRANSCRIBE] Fatal error:', errorMsg, errorStack);
     
     try {
       return NextResponse.json(
-        { success: false, error: errorMsg },
-        { status: 500 }
+        { success: false, error: displayError },
+        { status: statusCode }
       );
     } catch {
-      return new NextResponse(JSON.stringify({ success: false, error: errorMsg }), {
-        status: 500,
+      return new NextResponse(JSON.stringify({ success: false, error: displayError }), {
+        status: statusCode,
         headers: { 'Content-Type': 'application/json' },
       });
     }
