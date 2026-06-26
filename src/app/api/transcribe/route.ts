@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Storage } from 'coze-coding-dev-sdk';
-import { spawn, execFile } from 'child_process';
-import { writeFile, unlink, mkdir, readFile } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
 
 interface SubtitleSegment {
   id: number;
@@ -12,14 +8,8 @@ interface SubtitleSegment {
   text: string;
 }
 
-interface TranscribeRequest {
-  fileUrl?: string;
-  fileName?: string;
-}
-
 const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
 const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
-const VOLC_SECRET_KEY = process.env.VOLC_SECRET_KEY || 'MS1sWfWny32ozuAvK5HemPrxIm_UWh-M';
 const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.seedasr.auc';
 const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
 
@@ -94,176 +84,38 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 </fcpxml>`;
 }
 
-function getAudioFormat(fileName: string): string {
+/**
+ * 获取 ASR API 支持的音频/视频格式
+ * 火山引擎 ASR API 直接支持视频文件（mp4/mov 等），无需 FFmpeg 提取音频
+ */
+function getMediaFormat(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const formatMap: Record<string, string> = {
+    // 音频格式
     'mp3': 'mp3',
     'wav': 'wav',
     'ogg': 'ogg',
     'opus': 'opus',
     'raw': 'raw',
+    'm4a': 'mp4',
+    'aac': 'aac',
+    'flac': 'flac',
+    'amr': 'amr',
+    'wma': 'wma',
+    // 视频格式（ASR API 直接支持，自动提取音频轨道）
+    'mp4': 'mp4',
+    'mov': 'mov',
+    'avi': 'avi',
+    'mkv': 'mkv',
+    'webm': 'webm',
+    'flv': 'flv',
+    'wmv': 'wmv',
+    'm4v': 'mp4',
+    '3gp': '3gp',
+    'ts': 'ts',
+    'mts': 'mts',
   };
-  return formatMap[ext] || 'mp3';
-}
-
-const SUPPORTED_AUDIO_FORMATS = new Set(['mp3', 'wav', 'ogg', 'raw']);
-const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp', 'ts', 'mts']);
-const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus', 'raw', 'wma', 'amr']);
-
-function isVideoFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  return VIDEO_EXTENSIONS.has(ext);
-}
-
-function isAudioFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  return AUDIO_EXTENSIONS.has(ext);
-}
-
-function needsAudioConversion(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  return !SUPPORTED_AUDIO_FORMATS.has(ext);
-}
-
-let ffmpegAvailable: boolean | null = null;
-let ffmpegCheckPromise: Promise<boolean> | null = null;
-
-async function checkFFmpeg(): Promise<boolean> {
-  if (ffmpegAvailable !== null) return ffmpegAvailable;
-  
-  if (ffmpegCheckPromise) return ffmpegCheckPromise;
-  
-  ffmpegCheckPromise = (async () => {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        try {
-          const child = execFile('ffmpeg', ['-version'], (err) => {
-            if (err) reject(err);
-            else resolve();
-          });
-          child.on('error', (err) => {
-            reject(err);
-          });
-        } catch (e) {
-          reject(e);
-        }
-      });
-      ffmpegAvailable = true;
-      log('FFMPEG_CHECK', 'ffmpeg 可用');
-    } catch (e) {
-      ffmpegAvailable = false;
-      const errMsg = e instanceof Error ? e.message : String(e);
-      log('FFMPEG_CHECK', 'ffmpeg 不可用', { error: errMsg });
-    } finally {
-      ffmpegCheckPromise = null;
-    }
-    
-    return ffmpegAvailable as boolean;
-  })();
-  
-  return ffmpegCheckPromise;
-}
-
-async function ensureTempDir(): Promise<string> {
-  const tempDir = join(tmpdir(), 'transcribe-temp');
-  try {
-    await mkdir(tempDir, { recursive: true });
-  } catch (e) {
-    // directory may already exist
-  }
-  return tempDir;
-}
-
-async function extractAudioFromVideo(inputBuffer: Buffer, inputFileName: string): Promise<{ buffer: Buffer; fileName: string }> {
-  const tempDir = await ensureTempDir();
-  const timestamp = Date.now();
-  const randomSuffix = Math.random().toString(36).slice(2, 8);
-  
-  const baseName = inputFileName.replace(/\.[^.]+$/, '');
-  const ext = inputFileName.split('.').pop() || 'mp4';
-  const inputPath = join(tempDir, `${timestamp}_${randomSuffix}_input.${ext}`);
-  const outputPath = join(tempDir, `${timestamp}_${randomSuffix}_output.mp3`);
-  const outputFileName = `${baseName}.mp3`;
-  
-  log('AUDIO_EXTRACT', '开始从视频提取音频', { inputFileName, outputFileName });
-  
-  let inputCleaned = false;
-  let outputCleaned = false;
-  
-  try {
-    await writeFile(inputPath, inputBuffer);
-    inputCleaned = false;
-    
-    let ffmpegProcess;
-    try {
-      ffmpegProcess = spawn('ffmpeg', [
-        '-i', inputPath,
-        '-vn',
-        '-acodec', 'libmp3lame',
-        '-ab', '128k',
-        '-ar', '44100',
-        '-ac', '2',
-        '-y',
-        outputPath,
-      ]);
-    } catch (spawnError) {
-      if (spawnError instanceof Error && (spawnError as NodeJS.ErrnoException).code === 'ENOENT') {
-        log('FFMPEG_NOT_FOUND', 'spawn ffmpeg 失败，ffmpeg 未找到', { error: spawnError.message });
-        throw new Error('当前环境缺少 FFmpeg 工具，无法处理视频/音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。');
-      }
-      throw spawnError;
-    }
-    
-    let stderr = '';
-    ffmpegProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-    
-    await new Promise<void>((resolve, reject) => {
-      ffmpegProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
-        }
-      });
-      ffmpegProcess.on('error', (err) => {
-        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-          log('FFMPEG_NOT_FOUND', 'ffmpeg 进程启动失败，未找到可执行文件', { error: err.message });
-          reject(new Error('当前环境缺少 FFmpeg 工具，无法处理视频/音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。'));
-        } else {
-          reject(err);
-        }
-      });
-    });
-    
-    const outputBuffer = await readFile(outputPath);
-    outputCleaned = false;
-    
-    log('AUDIO_EXTRACT_DONE', '音频提取完成', { 
-      inputSize: `${(inputBuffer.length / 1024).toFixed(2)}KB`,
-      outputSize: `${(outputBuffer.length / 1024).toFixed(2)}KB`,
-      outputFileName,
-    });
-    
-    return { buffer: Buffer.from(outputBuffer), fileName: outputFileName };
-  } catch (error) {
-    log('AUDIO_EXTRACT_ERROR', '音频提取失败', { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw error;
-  } finally {
-    try {
-      await unlink(inputPath).catch(() => {});
-      inputCleaned = true;
-    } catch (e) {
-      // ignore cleanup errors
-    }
-    try {
-      await unlink(outputPath).catch(() => {});
-      outputCleaned = true;
-    } catch (e) {
-      // ignore cleanup errors
-    }
-  }
+  return formatMap[ext] || 'mp4';
 }
 
 function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
@@ -302,12 +154,12 @@ function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
     log('PARSE_ERROR', '解析ASR结果失败', { error: String(e) });
   }
   
-  return result.length > 0 ? result : [{ id: 1, start: 0, end: 30, text: '未识别到语音内容' }];
+  return result.length > 0 ? result : [];
 }
 
 async function submitASRTask(fileUrl: string, fileName: string, requestId: string): Promise<void> {
   const submitUrl = `${VOLC_BASE_URL}/submit`;
-  const format = getAudioFormat(fileName);
+  const format = getMediaFormat(fileName);
   
   const requestBody = {
     user: {
@@ -328,10 +180,8 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
   log('SUBMIT_REQUEST', '提交ASR任务', {
     url: submitUrl,
     requestId,
-    appId: VOLC_APP_ID,
-    resourceId: VOLC_RESOURCE_ID,
     format,
-    audioUrl: fileUrl.slice(0, 50) + '...',
+    audioUrl: fileUrl.slice(0, 80) + '...',
   });
 
   const response = await fetch(submitUrl, {
@@ -436,7 +286,6 @@ async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Prom
     await submitASRTask(fileUrl, fileName, requestId);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    // "无有效语音" 属于正常业务结果，不视为提交错误
     if (errorMsg.includes('no valid speech')) {
       return [];
     }
@@ -474,12 +323,6 @@ export async function POST(request: NextRequest) {
   
   try {
     const contentType = request.headers.get('content-type') || '';
-    log('REQUEST_HEADERS', '请求头信息', { 
-      contentType,
-      contentLength: request.headers.get('content-length'),
-      accept: request.headers.get('accept')
-    });
-    let file: File | null = null;
     let format = 'srt';
     let frameRate = 30;
     let videoUrl: string | null = null;
@@ -487,11 +330,10 @@ export async function POST(request: NextRequest) {
     if (contentType.includes('multipart/form-data')) {
       try {
         const formData = await request.formData();
-        file = formData.get('file') as File | null;
         format = (formData.get('format') as string) || 'srt';
         frameRate = parseInt((formData.get('frameRate') as string) || '30', 10);
         videoUrl = formData.get('videoUrl') as string | null;
-        log('FORMDATA_PARSED', 'FormData解析成功', { hasFile: !!file, format, frameRate, hasVideoUrl: !!videoUrl });
+        log('FORMDATA_PARSED', 'FormData解析成功', { format, frameRate, hasVideoUrl: !!videoUrl });
       } catch (e) {
         log('FORMDATA_ERROR', 'FormData解析失败', { error: String(e) });
         return NextResponse.json({ success: false, error: 'FormData解析失败，请重试' }, { status: 400 });
@@ -501,161 +343,24 @@ export async function POST(request: NextRequest) {
       videoUrl = body.videoUrl || null;
       format = body.format || 'srt';
       frameRate = body.frameRate || 30;
-      log('JSON_PARSED', 'JSON解析成功', { videoUrl, format, frameRate });
+      log('JSON_PARSED', 'JSON解析成功', { hasVideoUrl: !!videoUrl, format, frameRate });
     } else {
       log('CONTENT_TYPE_ERROR', '不支持的Content-Type', { contentType });
       return NextResponse.json({ success: false, error: `不支持的Content-Type: ${contentType}` }, { status: 400 });
     }
     
-    let fileUrl: string | undefined;
-    let fileName: string | undefined;
-    
-    if (file) {
-      log('FILE_INFO', '文件信息', { name: file.name, size: `${(file.size / 1024).toFixed(2)}KB`, type: file.type });
-      
-      const arrayBuffer = await file.arrayBuffer();
-      let buffer: Buffer = Buffer.from(arrayBuffer);
-      let currentFileName = file.name;
-      
-      const hasFFmpeg = await checkFFmpeg();
-      
-      if (isVideoFile(file.name)) {
-        if (!hasFFmpeg) {
-          log('VIDEO_NO_FFMPEG', '检测到视频文件但ffmpeg不可用，无法提取音频', { fileName: file.name });
-          return NextResponse.json(
-            { success: false, error: '当前环境不支持视频文件处理，请上传MP3/WAV/OGG格式的音频文件' },
-            { status: 400 }
-          );
-        }
-        log('VIDEO_DETECTED', '检测到视频文件，开始提取音频', { fileName: file.name });
-        const extractResult = await extractAudioFromVideo(buffer, file.name);
-        buffer = extractResult.buffer;
-        currentFileName = extractResult.fileName;
-        log('AUDIO_EXTRACTED', '音频提取成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
-      } else if (needsAudioConversion(file.name)) {
-        if (!hasFFmpeg) {
-          log('AUDIO_NO_FFMPEG', '检测到不支持的音频格式且ffmpeg不可用，尝试直接上传', { fileName: file.name });
-        } else {
-          log('AUDIO_CONVERT', '检测到不支持的音频格式，开始转换为MP3', { fileName: file.name });
-          const convertResult = await extractAudioFromVideo(buffer, file.name);
-          buffer = convertResult.buffer;
-          currentFileName = convertResult.fileName;
-          log('AUDIO_CONVERTED', '音频格式转换成功', { originalName: file.name, audioName: currentFileName, audioSize: `${(buffer.length / 1024).toFixed(2)}KB` });
-        }
-      }
-      
-      const storage = new S3Storage({
-        endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-        accessKey: '',
-        secretKey: '',
-        bucketName: process.env.COZE_BUCKET_NAME,
-        region: 'cn-beijing',
-      });
-      
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).slice(2, 8);
-      const ext = currentFileName.split('.').pop() || 'mp3';
-      const keyName = `subtitles/${timestamp}_${randomSuffix}.${ext}`;
-      
-      const key = await storage.uploadFile({
-        fileContent: buffer,
-        fileName: keyName,
-        contentType: `audio/${ext === 'mp3' ? 'mpeg' : ext}`,
-      });
-      
-      fileUrl = await storage.generatePresignedUrl({ key, expireTime: 7200 });
-      fileName = currentFileName;
-      
-      log('UPLOAD_DONE', '文件上传完成', { key, fileName: currentFileName });
-    } else if (videoUrl) {
-      // URL 模式：需要下载视频并提取音频（ASR API 只接受音频文件）
-      log('URL_MODE', '使用URL模式，开始下载远程文件', { videoUrl: videoUrl.slice(0, 80) + '...' });
-      
-      const downloadResponse = await fetch(videoUrl);
-      if (!downloadResponse.ok) {
-        throw new Error(`下载远程文件失败: ${downloadResponse.status} ${downloadResponse.statusText}`);
-      }
-      
-      const downloadedBuffer = Buffer.from(await downloadResponse.arrayBuffer());
-      const urlFileName = videoUrl.split('/').pop() || 'unknown.mp4';
-      log('DOWNLOAD_DONE', '远程文件下载完成', { 
-        fileName: urlFileName, 
-        size: `${(downloadedBuffer.length / 1024).toFixed(2)}KB` 
-      });
-      
-      let audioBuffer: Buffer = downloadedBuffer;
-      let audioFileName = urlFileName;
-      
-      const hasFFmpeg = await checkFFmpeg();
-      
-      // 如果是视频文件或不支持的音频格式，需要转换
-      if (isVideoFile(urlFileName)) {
-        if (!hasFFmpeg) {
-          log('VIDEO_URL_NO_FFMPEG', 'URL模式检测到视频文件但ffmpeg不可用', { fileName: urlFileName });
-          return NextResponse.json(
-            { success: false, error: '当前环境不支持视频文件处理，请提供MP3/WAV/OGG格式的音频文件URL' },
-            { status: 400 }
-          );
-        }
-        log('VIDEO_URL_DETECTED', 'URL模式检测到视频文件，开始提取音频');
-        const extractResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
-        audioBuffer = extractResult.buffer;
-        audioFileName = extractResult.fileName;
-        log('URL_AUDIO_EXTRACTED', 'URL模式音频提取成功', { 
-          audioName: audioFileName, 
-          audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
-        });
-      } else if (needsAudioConversion(urlFileName)) {
-        if (!hasFFmpeg) {
-          log('AUDIO_URL_NO_FFMPEG', 'URL模式检测到不支持的音频格式且ffmpeg不可用，尝试直接上传', { fileName: urlFileName });
-        } else {
-          log('AUDIO_URL_CONVERT', 'URL模式检测到不支持的音频格式，开始转换为MP3');
-          const convertResult = await extractAudioFromVideo(downloadedBuffer, urlFileName);
-          audioBuffer = convertResult.buffer;
-          audioFileName = convertResult.fileName;
-          log('URL_AUDIO_CONVERTED', 'URL模式音频格式转换成功', { 
-            audioName: audioFileName, 
-            audioSize: `${(audioBuffer.length / 1024).toFixed(2)}KB` 
-          });
-        }
-      }
-      
-      // 上传音频文件到 S3（ASR 需要可访问的音频 URL）
-      const storage = new S3Storage({
-        endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-        accessKey: '',
-        secretKey: '',
-        bucketName: process.env.COZE_BUCKET_NAME,
-        region: 'cn-beijing',
-      });
-      
-      const timestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).slice(2, 8);
-      const ext = audioFileName.split('.').pop() || 'mp3';
-      const keyName = `subtitles/${timestamp}_${randomSuffix}.${ext}`;
-      
-      const key = await storage.uploadFile({
-        fileContent: audioBuffer,
-        fileName: keyName,
-        contentType: `audio/${ext === 'mp3' ? 'mpeg' : ext}`,
-      });
-      
-      fileUrl = await storage.generatePresignedUrl({ key, expireTime: 7200 });
-      fileName = audioFileName;
-      
-      log('URL_UPLOAD_DONE', 'URL模式音频上传完成', { key, fileName: audioFileName });
-    }
-    
-    if (!fileUrl) {
+    if (!videoUrl) {
       return NextResponse.json(
-        { success: false, error: '请上传文件或提供文件URL' },
+        { success: false, error: '请提供文件URL' },
         { status: 400 }
       );
     }
+
+    // 直接将 URL 传给 ASR API（火山引擎 ASR 直接支持视频和音频格式）
+    const fileName = videoUrl.split('/').pop() || 'unknown.mp4';
+    log('TRANSCRIBE_START', '开始转写（直接URL模式，无需FFmpeg）', { fileName, format, frameRate });
     
-    log('TRANSCRIBE_START', '开始转写', { fileName, format, frameRate, model: VOLC_RESOURCE_ID });
-    
-    const segments = await transcribeWithVolcSpeech(fileUrl, fileName || 'unknown');
+    const segments = await transcribeWithVolcSpeech(videoUrl, fileName);
     
     let content: string;
     let responseContentType: string;
@@ -690,27 +395,17 @@ export async function POST(request: NextRequest) {
     const totalTime = Date.now() - startTime;
     const errorMsg = error instanceof Error ? error.message : '转写失败，请重试';
     const errorStack = error instanceof Error ? error.stack : '';
-    
-    let displayError = errorMsg;
-    let statusCode = 500;
-    
-    if (errorMsg.includes('ENOENT') || errorMsg.includes('spawn ffmpeg') || errorMsg.includes('缺少 FFmpeg')) {
-      displayError = '当前环境缺少 FFmpeg 工具，无法处理视频文件或音频格式转换。请上传 MP3/WAV/OGG 格式的音频文件。';
-      statusCode = 400;
-      log('FFMPEG_ERROR', '检测到 FFmpeg 相关错误，返回友好提示', { originalError: errorMsg });
-    }
-    
-    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: displayError, originalError: errorMsg });
+    log('ERROR', '转写失败', { totalTime: `${totalTime}ms`, error: errorMsg, stack: errorStack });
     console.error('[TRANSCRIBE] Fatal error:', errorMsg, errorStack);
     
     try {
       return NextResponse.json(
-        { success: false, error: displayError },
-        { status: statusCode }
+        { success: false, error: errorMsg },
+        { status: 500 }
       );
     } catch {
-      return new NextResponse(JSON.stringify({ success: false, error: displayError }), {
-        status: statusCode,
+      return new NextResponse(JSON.stringify({ success: false, error: errorMsg }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
     }
