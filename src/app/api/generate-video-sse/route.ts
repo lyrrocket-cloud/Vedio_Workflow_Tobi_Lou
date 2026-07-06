@@ -251,11 +251,10 @@ export async function POST(request: NextRequest) {
 
         // Generate video
         log('API_CALL_START', '开始调用视频生成API', {
-          model: 'doubao-seedance-1-5-pro-251215',
+          model: 'doubao-seedance-2-0-260128',
           duration,
           resolution,
           ratio,
-          generateAudio,
           maxWaitTime: 900,
           说明: 'SDK内部会轮询任务状态，这是阻塞调用，无法获取实时进度',
         });
@@ -264,11 +263,10 @@ export async function POST(request: NextRequest) {
         let response;
         try {
           response = await client.videoGeneration(content, {
-            model: 'doubao-seedance-1-5-pro-251215',
+            model: 'doubao-seedance-2-0-260128',
             duration: duration || 5,
             resolution: resolution as '480p' | '720p' | '1080p' || '720p',
             ratio: ratio as '16:9' | '9:16' | '1:1' | '4:3' | '3:4' || '16:9',
-            generateAudio: generateAudio ?? true,
             watermark: false, // 关闭水印
             maxWaitTime: 900,
           });

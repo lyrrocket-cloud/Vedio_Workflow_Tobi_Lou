@@ -55,11 +55,10 @@ export async function POST(request: NextRequest) {
 
     // Generate video
     const response = await client.videoGeneration(content, {
-      model: 'doubao-seedance-1-5-pro-251215',
+      model: 'doubao-seedance-2-0-260128',
       duration: duration || 5,
       resolution: resolution as '480p' | '720p' | '1080p' || '720p',
       ratio: ratio as '16:9' | '9:16' | '1:1' | '4:3' | '3:4' || '16:9',
-      generateAudio: generateAudio ?? true,
       maxWaitTime: 900, // 15 minutes max
     });
 

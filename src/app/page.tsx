@@ -926,7 +926,7 @@ export default function TransitionVideoGenerator() {
                         className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
                       >
                         <Bot className="w-4 h-4 mr-2" />
-                        Coze Seedance1.5 Pro
+                        Coze Seedance 2.0
                       </TabsTrigger>
                       <TabsTrigger 
                         value="ark" 
