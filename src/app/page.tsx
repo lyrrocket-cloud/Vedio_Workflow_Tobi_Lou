@@ -73,6 +73,9 @@ export default function TransitionVideoGenerator() {
 
   // 音效生成状态
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
+  const [sfxType, setSfxType] = useState<string>('custom');
+  const [sfxSteps, setSfxSteps] = useState<number>(200);
+  const [sfxGuidanceScale, setSfxGuidanceScale] = useState<number>(3.5);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
   const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; translatedPrompt: string; url: string; time: string}>>([]);
@@ -1268,6 +1271,42 @@ export default function TransitionVideoGenerator() {
 
           {/* 音效生成Tab */}
           <TabsContent value="sfx" className="space-y-6 mt-0">
+            {/* 音效类型选择 */}
+            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <CardHeader>
+                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
+                  <AudioLines className="w-5 h-5 text-[#CEA472]" />
+                  音效类型
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { value: 'ambient', label: '环境', desc: '氛围音' },
+                    { value: 'fx', label: '特效', desc: '电影音效' },
+                    { value: 'music', label: '音乐', desc: '背景音乐' },
+                    { value: 'voice', label: '人声', desc: '说话声' },
+                    { value: 'nature', label: '自然', desc: '户外声音' },
+                    { value: 'tech', label: '科技', desc: '电子音效' },
+                    { value: 'custom', label: '自定义', desc: '自由描述' },
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      onClick={() => setSfxType(type.value)}
+                      className={`px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                        sfxType === type.value
+                          ? 'bg-[#CEA472]/20 border border-[#CEA472] text-[#CEA472]'
+                          : 'bg-black/40 border border-[#CEA472]/20 text-[#FFFFFF]/60 hover:border-[#CEA472]/40 hover:text-[#FFFFFF]/80'
+                      }`}
+                    >
+                      <div className="font-medium">{type.label}</div>
+                      <div className="text-xs opacity-60">{type.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* 提示词输入区 */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
@@ -1277,13 +1316,80 @@ export default function TransitionVideoGenerator() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
+                <div className="space-y-4">
+                  {/* 预设按钮 */}
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: '🌧️ 雨声', prompt: '雨滴打在窗户上的声音' },
+                      { label: '⚡ 雷声', prompt: '远处的雷声轰鸣' },
+                      { label: '🌿 鸟鸣', prompt: '森林里的鸟鸣声' },
+                      { label: '🌊 海浪', prompt: '海浪拍打沙滩的声音' },
+                      { label: '🔥 篝火', prompt: '篝火燃烧的噼啪声' },
+                      { label: '💥 爆炸', prompt: '爆炸声' },
+                      { label: '✨ 魔法', prompt: '魔法闪烁的声音' },
+                      { label: '❤️ 心跳', prompt: '紧张的心跳声' },
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          setSfxPrompt(preset.prompt);
+                          if (preset.label.includes('雨') || preset.label.includes('海浪') || preset.label.includes('鸟鸣')) {
+                            setSfxType('nature');
+                          } else if (preset.label.includes('爆炸') || preset.label.includes('魔法')) {
+                            setSfxType('fx');
+                          } else if (preset.label.includes('心跳')) {
+                            setSfxType('fx');
+                          } else if (preset.label.includes('篝火')) {
+                            setSfxType('ambient');
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-black/40 border border-[#CEA472]/20 rounded-full text-sm text-[#FFFFFF]/70 hover:border-[#CEA472]/40 hover:text-[#CEA472] transition-all duration-200"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <Textarea
                     value={sfxPrompt}
                     onChange={(e) => setSfxPrompt(e.target.value)}
                     placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
                     className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
                   />
+
+                  {/* 参数调节 */}
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[#FFFFFF]/70 text-sm">生成步数</Label>
+                        <span className="text-[#CEA472] text-sm">{sfxSteps}</span>
+                      </div>
+                      <Slider
+                        value={[sfxSteps]}
+                        onValueChange={(value) => setSfxSteps(value[0])}
+                        min={100}
+                        max={400}
+                        step={20}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-[#FFFFFF]/40">步数越高，音效越精细，但生成时间更长</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[#FFFFFF]/70 text-sm">引导系数</Label>
+                        <span className="text-[#CEA472] text-sm">{sfxGuidanceScale}</span>
+                      </div>
+                      <Slider
+                        value={[sfxGuidanceScale]}
+                        onValueChange={(value) => setSfxGuidanceScale(value[0])}
+                        min={1}
+                        max={7}
+                        step={0.5}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-[#FFFFFF]/40">系数越高，越严格遵循提示词</p>
+                    </div>
+                  </div>
                 </div>
 
                 {sfxError && (
@@ -1307,7 +1413,12 @@ export default function TransitionVideoGenerator() {
                         const response = await fetch('/api/generate-sfx', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ prompt: sfxPrompt }),
+                          body: JSON.stringify({ 
+                            prompt: sfxPrompt,
+                            sfxType,
+                            steps: sfxSteps,
+                            guidanceScale: sfxGuidanceScale,
+                          }),
                         });
                         const data = await response.json();
                         if (!response.ok || !data.success) {

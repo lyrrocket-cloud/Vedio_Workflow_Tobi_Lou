@@ -35,8 +35,34 @@ function formatTimeSRT(seconds: number): string {
 }
 
 function formatTimeFCPXML(seconds: number, frameRate: number): string {
+  if (frameRate === 23.976 || frameRate === 24) {
+    const frames = Math.round(seconds * 24000 / 1001);
+    return `${frames}/24000s`;
+  } else if (frameRate === 25) {
+    const frames = Math.round(seconds * 25);
+    return `${frames}/25s`;
+  } else if (frameRate === 29.97 || frameRate === 30) {
+    const frames = Math.round(seconds * 30000 / 1001);
+    return `${frames}/30000s`;
+  } else if (frameRate === 59.94 || frameRate === 60) {
+    const frames = Math.round(seconds * 60000 / 1001);
+    return `${frames}/60000s`;
+  }
   const frames = Math.round(seconds * frameRate);
   return `${frames}/${frameRate}s`;
+}
+
+function getFrameDuration(frameRate: number): string {
+  if (frameRate === 23.976 || frameRate === 24) {
+    return '1001/24000s';
+  } else if (frameRate === 25) {
+    return '1/25s';
+  } else if (frameRate === 29.97 || frameRate === 30) {
+    return '1001/30000s';
+  } else if (frameRate === 59.94 || frameRate === 60) {
+    return '1001/60000s';
+  }
+  return `1/${frameRate}s`;
 }
 
 export function generateSRT(segments: SubtitleSegment[]): string {
@@ -46,15 +72,29 @@ export function generateSRT(segments: SubtitleSegment[]): string {
 export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 30): string {
   const totalDuration = segments.length > 0 
     ? formatTimeFCPXML(segments[segments.length - 1].end + 1, frameRate)
-    : '0/30s';
+    : frameRate === 23.976 || frameRate === 24 ? '0/24000s' 
+      : frameRate === 25 ? '0/25s'
+      : frameRate === 59.94 || frameRate === 60 ? '0/60000s'
+      : '0/30000s';
+
+  const frameDuration = getFrameDuration(frameRate);
+  const formatName = frameRate === 24 ? 'FFVideoFormat1080p24' : 
+                    frameRate === 25 ? 'FFVideoFormat1080p25' :
+                    frameRate === 60 ? 'FFVideoFormat1080p60' : 'FFVideoFormat1080p30';
 
   const titleItems = segments.map(seg => {
     const start = formatTimeFCPXML(seg.start, frameRate);
     const duration = formatTimeFCPXML(seg.end - seg.start, frameRate);
+    const escapedText = seg.text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
     return `
-            <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" start="${start}" duration="${duration}">
+            <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
                 <text>
-                    <text-style ref="ts1">${seg.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text-style>
+                    ${escapedText}
                 </text>
             </title>`;
   }).join('');
@@ -63,16 +103,13 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 <!DOCTYPE fcpxml>
 <fcpxml version="1.10">
     <resources>
-        <format id="r1" name="FFVideoFormat1080p${frameRate}" frameDuration="1/${frameRate}s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
-        <effect id="r2" name="字幕" uid=".../Titles.localized/Bumper/Basic Title.localized/Basic Title.moti" />
-        <text-style-def id="ts1">
-            <text-style font="PingFang SC" fontSize="36" fontFace="Semibold" fontColor="1 1 1 1" alignment="center" lineSpacing="0"/>
-        </text-style-def>
+        <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" properTimeScale="30000" timeScale="30000"/>
+        <effect id="r2" name="Basic Title" uid=".../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti"/>
     </resources>
     <library>
         <event name="字幕项目">
             <project name="字幕序列">
-                <sequence format="r1" duration="${totalDuration}">
+                <sequence format="r1" duration="${totalDuration}" tcStart="0s" tcFormat="NDF">
                     <spine>
                         <gap name="占位符" offset="0s" start="0s" duration="${totalDuration}"/>
                         ${titleItems}
