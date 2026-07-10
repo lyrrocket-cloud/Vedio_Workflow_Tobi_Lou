@@ -92,7 +92,7 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
     return `
-            <title name="字幕 ${seg.id}" lane="1" offset="${start}" duration="${duration}">
+            <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
                 <text>${escapedText}</text>
             </title>`;
   }).join('');
@@ -102,6 +102,7 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 <fcpxml version="1.10">
     <resources>
         <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080"/>
+        <effect id="r2" name="Basic Title" uid=".../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti"/>
     </resources>
     <library>
         <event name="字幕项目">
