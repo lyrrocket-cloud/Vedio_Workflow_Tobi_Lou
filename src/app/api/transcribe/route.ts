@@ -92,18 +92,16 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
     return `
-            <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
-                <text>
-                    ${escapedText}
-                </text>
-            </title>`;
+        <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
+            <param name="Text" key="9999/999166631/999166633/1/100" value="${escapedText}"/>
+        </title>`;
   }).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE fcpxml SYSTEM "FCPXML_1_10.dtd">
 <fcpxml version="1.10">
     <resources>
-        <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+        <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080"/>
         <effect id="r2" name="Basic Title" uid=".../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti"/>
     </resources>
     <library>
@@ -111,9 +109,8 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
             <project name="字幕序列">
                 <sequence format="r1" duration="${totalDuration}" tcStart="0s" tcFormat="NDF">
                     <spine>
-                        <gap name="占位符" offset="0s" start="0s" duration="${totalDuration}"/>
-                        ${titleItems}
-                    </spine>
+                        <gap name="Background" offset="0s" start="0s" duration="${totalDuration}"/>
+                    </spine>${titleItems}
                 </sequence>
             </project>
         </event>
