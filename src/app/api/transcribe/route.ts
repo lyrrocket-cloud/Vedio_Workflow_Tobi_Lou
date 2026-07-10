@@ -100,10 +100,10 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
   }).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE fcpxml>
+<!DOCTYPE fcpxml SYSTEM "FCPXML_1_10.dtd">
 <fcpxml version="1.10">
     <resources>
-        <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)" properTimeScale="30000" timeScale="30000"/>
+        <format id="r1" name="${formatName}" frameDuration="${frameDuration}" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
         <effect id="r2" name="Basic Title" uid=".../Titles.localized/Bumper:Opener.localized/Basic Title.localized/Basic Title.moti"/>
     </resources>
     <library>
