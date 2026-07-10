@@ -92,9 +92,9 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
     return `
-        <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
-            <param name="Text" key="9999/999166631/999166633/1/100" value="${escapedText}"/>
-        </title>`;
+            <title name="字幕 ${seg.id}" lane="1" offset="${start}" ref="r2" duration="${duration}">
+                <param name="Text" key="9999/999166631/999166633/1/100" value="${escapedText}"/>
+            </title>`;
   }).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -109,8 +109,9 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
             <project name="字幕序列">
                 <sequence format="r1" duration="${totalDuration}" tcStart="0s" tcFormat="NDF">
                     <spine>
-                        <gap name="Background" offset="0s" start="0s" duration="${totalDuration}"/>
-                    </spine>${titleItems}
+                        <gap name="Background" offset="0s" start="0s" duration="${totalDuration}">${titleItems}
+                        </gap>
+                    </spine>
                 </sequence>
             </project>
         </event>
