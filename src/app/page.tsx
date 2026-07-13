@@ -73,7 +73,6 @@ export default function TransitionVideoGenerator() {
 
   // 音效生成状态
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
-  const [sfxType, setSfxType] = useState<string>('custom');
   const [sfxSteps, setSfxSteps] = useState<number>(200);
   const [sfxGuidanceScale, setSfxGuidanceScale] = useState<number>(3.5);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
@@ -1271,42 +1270,6 @@ export default function TransitionVideoGenerator() {
 
           {/* 音效生成Tab */}
           <TabsContent value="sfx" className="space-y-6 mt-0">
-            {/* 音效类型选择 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
-              <CardHeader>
-                <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
-                  <AudioLines className="w-5 h-5 text-[#CEA472]" />
-                  音效类型
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { value: 'ambient', label: '环境', desc: '氛围音' },
-                    { value: 'fx', label: '特效', desc: '电影音效' },
-                    { value: 'music', label: '音乐', desc: '背景音乐' },
-                    { value: 'voice', label: '人声', desc: '说话声' },
-                    { value: 'nature', label: '自然', desc: '户外声音' },
-                    { value: 'tech', label: '科技', desc: '电子音效' },
-                    { value: 'custom', label: '自定义', desc: '自由描述' },
-                  ].map(type => (
-                    <button
-                      key={type.value}
-                      onClick={() => setSfxType(type.value)}
-                      className={`px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                        sfxType === type.value
-                          ? 'bg-[#CEA472]/20 border border-[#CEA472] text-[#CEA472]'
-                          : 'bg-black/40 border border-[#CEA472]/20 text-[#FFFFFF]/60 hover:border-[#CEA472]/40 hover:text-[#FFFFFF]/80'
-                      }`}
-                    >
-                      <div className="font-medium">{type.label}</div>
-                      <div className="text-xs opacity-60">{type.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* 提示词输入区 */}
             <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
               <CardHeader>
@@ -1317,39 +1280,6 @@ export default function TransitionVideoGenerator() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* 预设按钮 */}
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: '🌧️ 雨声', prompt: '雨滴打在窗户上的声音' },
-                      { label: '⚡ 雷声', prompt: '远处的雷声轰鸣' },
-                      { label: '🌿 鸟鸣', prompt: '森林里的鸟鸣声' },
-                      { label: '🌊 海浪', prompt: '海浪拍打沙滩的声音' },
-                      { label: '🔥 篝火', prompt: '篝火燃烧的噼啪声' },
-                      { label: '💥 爆炸', prompt: '爆炸声' },
-                      { label: '✨ 魔法', prompt: '魔法闪烁的声音' },
-                      { label: '❤️ 心跳', prompt: '紧张的心跳声' },
-                    ].map(preset => (
-                      <button
-                        key={preset.label}
-                        onClick={() => {
-                          setSfxPrompt(preset.prompt);
-                          if (preset.label.includes('雨') || preset.label.includes('海浪') || preset.label.includes('鸟鸣')) {
-                            setSfxType('nature');
-                          } else if (preset.label.includes('爆炸') || preset.label.includes('魔法')) {
-                            setSfxType('fx');
-                          } else if (preset.label.includes('心跳')) {
-                            setSfxType('fx');
-                          } else if (preset.label.includes('篝火')) {
-                            setSfxType('ambient');
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-black/40 border border-[#CEA472]/20 rounded-full text-sm text-[#FFFFFF]/70 hover:border-[#CEA472]/40 hover:text-[#CEA472] transition-all duration-200"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-
                   <Textarea
                     value={sfxPrompt}
                     onChange={(e) => setSfxPrompt(e.target.value)}
@@ -1415,7 +1345,6 @@ export default function TransitionVideoGenerator() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ 
                             prompt: sfxPrompt,
-                            sfxType,
                             steps: sfxSteps,
                             guidanceScale: sfxGuidanceScale,
                           }),
