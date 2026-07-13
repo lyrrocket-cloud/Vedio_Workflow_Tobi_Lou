@@ -137,6 +137,7 @@ async function submitTask(params: SfxRequest) {
       model: 'AudioFly',
       num_inference_steps: params.steps || template.defaultSteps,
       guidance_scale: params.guidanceScale || template.defaultGuidance,
+      duration: params.duration || 3,
       output_format: params.outputFormat || 'mp3',
     }),
   });
