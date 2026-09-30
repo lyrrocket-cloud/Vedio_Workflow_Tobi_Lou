@@ -107,7 +107,17 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 }
 
 /**
- * 将 SDK ASR 识别结果解析为字幕分段
+ * 将整段文本按中文/英文句子分割为多条
+ */
+function splitSentences(text: string): string[] {
+  const normalized = text.replace(/\s*([。！？!?；;])\s*/g, '$1\n').replace(/([，,])\s*/g, '$1\n');
+  return normalized
+    .split('\n')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
  * 兼容 SDK 多种响应结构（utterances 在顶层 / result 下 / rawData 下）
  */
 function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
@@ -140,8 +150,36 @@ function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
       const text = (data.text as string) || String(resultData.text || '');
       if (text) {
         const audioInfo = ((data.audio_info || raw?.audio_info) as Record<string, unknown>) || {};
-        const duration = typeof audioInfo.duration === 'number' ? audioInfo.duration / 1000 : 30;
-        result.push({ id: 1, start: 0, end: duration, text: String(text) });
+        const durationMs =
+          typeof audioInfo.duration === 'number'
+            ? audioInfo.duration
+            : typeof data.duration === 'number'
+              ? data.duration
+              : 0;
+        const duration = durationMs / 1000;
+        // 无逐句时间戳时，按句子切分，并按字符数比例分配时长
+        const sentences = splitSentences(String(text));
+        if (!duration || sentences.length <= 1) {
+          result.push({ id: 1, start: 0, end: duration || 3, text: String(text) });
+        } else {
+          const totalChars = sentences.reduce((sum, s) => sum + s.length, 0) || 1;
+          let cursor = 0;
+          sentences.forEach((sent, i) => {
+            const ratio = Math.max(sent.length / totalChars, 0);
+            const segDur = ratio * duration;
+            const end = i === sentences.length - 1 ? duration : Math.min(duration, cursor + segDur);
+            const trimmed = sent.trim();
+            if (trimmed) {
+              result.push({
+                id: result.length + 1,
+                start: parseFloat(cursor.toFixed(3)),
+                end: parseFloat(end.toFixed(3)),
+                text: trimmed,
+              });
+            }
+            cursor = end;
+          });
+        }
       }
     }
   } catch (e) {
