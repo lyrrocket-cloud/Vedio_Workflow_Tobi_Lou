@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ASRClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { S3Storage } from 'coze-coding-dev-sdk';
 
 interface SubtitleSegment {
   id: number;
@@ -8,9 +8,22 @@ interface SubtitleSegment {
   text: string;
 }
 
+const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
+const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
+const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.seedasr.auc';
+const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
+
 function log(stage: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [TRANSCRIBE] [${stage}] ${message}`, data ? JSON.stringify(data).slice(0, 500) : '');
+}
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 function formatTimeSRT(seconds: number): string {
@@ -107,30 +120,48 @@ export function generateFCPXML(segments: SubtitleSegment[], frameRate: number = 
 }
 
 /**
- * 将整段文本按中文/英文句子分割为多条
+ * 获取 ASR API 支持的音频/视频格式
+ * 火山引擎 ASR API 直接支持视频文件（mp4/mov 等），无需 FFmpeg 提取音频
  */
-function splitSentences(text: string): string[] {
-  const normalized = text.replace(/\s*([。！？!?；;])\s*/g, '$1\n').replace(/([，,])\s*/g, '$1\n');
-  return normalized
-    .split('\n')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+function getMediaFormat(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const formatMap: Record<string, string> = {
+    // 音频格式
+    'mp3': 'mp3',
+    'wav': 'wav',
+    'ogg': 'ogg',
+    'opus': 'opus',
+    'raw': 'raw',
+    'm4a': 'mp4',
+    'aac': 'aac',
+    'flac': 'flac',
+    'amr': 'amr',
+    'wma': 'wma',
+    // 视频格式（ASR API 直接支持，自动提取音频轨道）
+    'mp4': 'mp4',
+    'mov': 'mov',
+    'avi': 'avi',
+    'mkv': 'mkv',
+    'webm': 'webm',
+    'flv': 'flv',
+    'wmv': 'wmv',
+    'm4v': 'mp4',
+    '3gp': '3gp',
+    'ts': 'ts',
+    'mts': 'mts',
+  };
+  return formatMap[ext] || 'mp4';
 }
 
-/**
- * 兼容 SDK 多种响应结构（utterances 在顶层 / result 下 / rawData 下）
- */
 function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
   const result: SubtitleSegment[] = [];
   
   try {
-    const raw = data.rawData as Record<string, unknown> | undefined;
-    const resultData = (data.result as Record<string, unknown>) || ((raw?.result as Record<string, unknown>) || {});
-    const utterances = (data.utterances as unknown[]) || (resultData.utterances as unknown[]) || [];
+    const resultData = data.result as Record<string, unknown> || {};
+    const utterances = resultData.utterances;
     
     if (Array.isArray(utterances) && utterances.length > 0) {
-      utterances.forEach((u, index) => {
-        const utterance = u as Record<string, unknown>;
+      utterances.forEach((utterance: Record<string, unknown>, index: number) => {
         const startTime = typeof utterance.start_time === 'number' ? utterance.start_time / 1000 : index * 3;
         const endTime = typeof utterance.end_time === 'number' ? utterance.end_time / 1000 : startTime + 2;
         const text = utterance.text || '';
@@ -147,39 +178,11 @@ function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
     }
     
     if (result.length === 0) {
-      const text = (data.text as string) || String(resultData.text || '');
+      const text = resultData.text || data.text || '';
       if (text) {
-        const audioInfo = ((data.audio_info || raw?.audio_info) as Record<string, unknown>) || {};
-        const durationMs =
-          typeof audioInfo.duration === 'number'
-            ? audioInfo.duration
-            : typeof data.duration === 'number'
-              ? data.duration
-              : 0;
-        const duration = durationMs / 1000;
-        // 无逐句时间戳时，按句子切分，并按字符数比例分配时长
-        const sentences = splitSentences(String(text));
-        if (!duration || sentences.length <= 1) {
-          result.push({ id: 1, start: 0, end: duration || 3, text: String(text) });
-        } else {
-          const totalChars = sentences.reduce((sum, s) => sum + s.length, 0) || 1;
-          let cursor = 0;
-          sentences.forEach((sent, i) => {
-            const ratio = Math.max(sent.length / totalChars, 0);
-            const segDur = ratio * duration;
-            const end = i === sentences.length - 1 ? duration : Math.min(duration, cursor + segDur);
-            const trimmed = sent.trim();
-            if (trimmed) {
-              result.push({
-                id: result.length + 1,
-                start: parseFloat(cursor.toFixed(3)),
-                end: parseFloat(end.toFixed(3)),
-                text: trimmed,
-              });
-            }
-            cursor = end;
-          });
-        }
+        const audioInfo = data.audio_info as Record<string, unknown> || {};
+        const duration = typeof audioInfo.duration === 'number' ? audioInfo.duration / 1000 : 30;
+        result.push({ id: 1, start: 0, end: duration, text: String(text) });
       }
     }
   } catch (e) {
@@ -189,33 +192,160 @@ function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
   return result.length > 0 ? result : [];
 }
 
-/**
- * 使用 coze-coding-dev-sdk 内置 ASRClient 进行语音识别
- * 使用平台托管凭证（已授权），不依赖用户账户单独开通火山资源
- */
-async function transcribeWithASR(fileUrl: string, requestHeaders: Headers): Promise<SubtitleSegment[]> {
-  log('ASR_START', 'SDK ASR 语音识别', { url: fileUrl.slice(0, 80) + '...' });
+async function submitASRTask(fileUrl: string, fileName: string, requestId: string): Promise<void> {
+  const submitUrl = `${VOLC_BASE_URL}/submit`;
+  const format = getMediaFormat(fileName);
   
-  const customHeaders = HeaderUtils.extractForwardHeaders(requestHeaders);
-  const config = new Config();
-  const client = new ASRClient(config, customHeaders);
+  const requestBody = {
+    user: {
+      uid: VOLC_APP_ID,
+    },
+    audio: {
+      format: format,
+      url: fileUrl,
+    },
+    request: {
+      model_name: 'bigmodel',
+      enable_itn: true,
+      enable_punc: true,
+      show_utterances: true,
+    },
+  };
+
+  log('SUBMIT_REQUEST', '提交ASR任务', {
+    url: submitUrl,
+    requestId,
+    format,
+    audioUrl: fileUrl.slice(0, 80) + '...',
+  });
+
+  const response = await fetch(submitUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-App-Key': VOLC_APP_ID,
+      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
+      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Request-Id': requestId,
+      'X-Api-Sequence': '-1',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const logId = response.headers.get('X-Tt-Logid') || '';
+  const statusCode = response.headers.get('X-Api-Status-Code') || '';
+  const message = response.headers.get('X-Api-Message') || '';
+  
+  log('SUBMIT_RESPONSE', '提交任务响应', {
+    status: response.status,
+    logId,
+    statusCode,
+    message,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    log('SUBMIT_ERROR', '提交ASR任务失败', {
+      status: response.status,
+      statusCode,
+      message,
+      error: errorText.slice(0, 500),
+    });
+    throw new Error(`提交ASR任务失败: ${statusCode} - ${message}`);
+  }
+
+  if (statusCode && statusCode !== '20000000') {
+    throw new Error(`提交ASR任务失败: ${statusCode} - ${message}`);
+  }
+  
+  const responseBody = await response.text();
+  log('SUBMIT_BODY', '提交任务响应体', { body: responseBody.slice(0, 200) });
+}
+
+async function queryASRResult(requestId: string): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
+  const queryUrl = `${VOLC_BASE_URL}/query`;
+
+  log('QUERY_REQUEST', '查询ASR结果', {
+    url: queryUrl,
+    requestId,
+  });
+
+  const response = await fetch(queryUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-App-Key': VOLC_APP_ID,
+      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
+      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Request-Id': requestId,
+    },
+    body: JSON.stringify({}),
+  });
+
+  const logId = response.headers.get('X-Tt-Logid') || '';
+  const statusCode = response.headers.get('X-Api-Status-Code') || '';
+  const message = response.headers.get('X-Api-Message') || '';
+
+  const data = await response.json();
+  log('QUERY_RESPONSE', '查询结果响应', {
+    status: response.status,
+    logId,
+    statusCode,
+    message,
+    data: JSON.stringify(data).slice(0, 500),
+  });
+
+  if (statusCode === '20000000') {
+    const segments = parseASRResult(data as Record<string, unknown>);
+    log('QUERY_SUCCESS', 'ASR任务完成', { segments: segments.length });
+    return { status: 'succeeded', segments };
+  } else if (statusCode === '20000001' || statusCode === '20000002') {
+    log('QUERY_RUNNING', 'ASR任务处理中', { statusCode, message });
+    return { status: 'running' };
+  } else {
+    log('QUERY_FAILED', 'ASR任务失败', { statusCode, message });
+    // "无有效语音"属于正常业务结果，不视为服务错误
+    if (message && message.includes('no valid speech')) {
+      return { status: 'succeeded', segments: [] };
+    }
+    return { status: 'failed', error: message || `错误码: ${statusCode}` };
+  }
+}
+
+async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
+  log('VOLC_TRANSCRIBE', '使用火山引擎录音文件识别', { fileName, resourceId: VOLC_RESOURCE_ID });
+  
+  const requestId = generateUUID();
   
   try {
-    const result = await client.recognize({ uid: 'videoworkflow', url: fileUrl });
-    log('ASR_SUCCESS', 'SDK ASR 识别成功', {
-      textLen: (result.text || '').length,
-      utterances: Array.isArray(result.utterances) ? result.utterances.length : 0,
-    });
-    return parseASRResult(result as unknown as Record<string, unknown>);
+    await submitASRTask(fileUrl, fileName, requestId);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    log('ASR_ERROR', 'SDK ASR 识别失败', { error: msg.slice(0, 300) });
-    // "无有效语音"属于正常业务结果，返回空字幕
-    if (msg.includes('no valid speech') || msg.includes('20000003')) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMsg.includes('no valid speech')) {
       return [];
     }
-    throw new Error(`语音识别失败: ${msg}`);
+    throw error;
   }
+  
+  log('POLLING_START', '开始轮询ASR结果', { requestId });
+  
+  const maxWaitTime = 300;
+  const pollInterval = 3000;
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitTime * 1000) {
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+    
+    const result = await queryASRResult(requestId);
+    
+    if (result.status === 'succeeded') {
+      return result.segments || [];
+    } else if (result.status === 'failed') {
+      throw new Error(result.error || 'ASR转写失败');
+    }
+  }
+  
+  throw new Error('ASR转写超时，请稍后重试');
 }
 
 export const runtime = 'nodejs';
@@ -261,10 +391,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 使用 SDK ASRClient 转写（平台托管凭证，直接支持视频和音频格式）
-    log('TRANSCRIBE_START', '开始转写（SDK ASR，无需FFmpeg）', { format, frameRate });
+    // 直接将 URL 传给 ASR API（火山引擎 ASR 直接支持视频和音频格式）
+    const fileName = videoUrl.split('/').pop() || 'unknown.mp4';
+    log('TRANSCRIBE_START', '开始转写（直接URL模式，无需FFmpeg）', { fileName, format, frameRate });
     
-    const segments = await transcribeWithASR(videoUrl, request.headers);
+    const segments = await transcribeWithVolcSpeech(videoUrl, fileName);
     
     let content: string;
     let responseContentType: string;
