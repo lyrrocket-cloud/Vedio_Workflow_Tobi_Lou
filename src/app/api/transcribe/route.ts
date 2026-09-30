@@ -10,7 +10,7 @@ interface SubtitleSegment {
 
 const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
 const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
-const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.seedasr.auc';
+const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.bigasr.auc';
 const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
 
 function log(stage: string, message: string, data?: Record<string, unknown>) {
