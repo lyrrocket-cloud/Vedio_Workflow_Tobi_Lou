@@ -11,11 +11,38 @@ interface SubtitleSegment {
 
 const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
 const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
+// 新版控制台：单个 API Key（X-Api-Key）。若配置则优先使用；否则退回旧版 App ID + Access Token
+const VOLC_API_KEY = process.env.VOLC_API_KEY || '';
 const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.bigasr.auc';
 // 火山录音文件识别资源漫游列表：按顺序尝试，直到某资源授权成功
 const VOLC_RESOURCES = (process.env.VOLC_RESOURCES || 'volc.bigasr.auc,volc.seedasr.auc')
   .split(',').map((s: string) => s.trim()).filter(Boolean);
 const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
+
+// 脱敏凭证，用于日志确认是否读到了用户配置的环境变量
+function maskCred(s: string | undefined): string {
+  if (!s) return '(未配置)';
+  if (s.length <= 8) return '***';
+  return `${s.slice(0, 4)}***${s.slice(-4)}`;
+}
+
+// 构建鉴权 headers：新版单 Key 优先，否则旧版 AppID+Token
+function authHeaders(resourceId: string, requestId: string): Record<string, string> {
+  return VOLC_API_KEY
+    ? {
+        'X-Api-Key': VOLC_API_KEY,
+        'X-Api-Resource-Id': resourceId,
+        'X-Api-Request-Id': requestId,
+        'X-Api-Sequence': '-1',
+      }
+    : {
+        'X-Api-App-Key': VOLC_APP_ID,
+        'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
+        'X-Api-Resource-Id': resourceId,
+        'X-Api-Request-Id': requestId,
+        'X-Api-Sequence': '-1',
+      };
+}
 
 function log(stage: string, message: string, data?: Record<string, unknown>) {
   const timestamp = new Date().toISOString();
@@ -221,6 +248,8 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
     requestId,
     format,
     resourceId,
+    appId: maskCred(VOLC_APP_ID),
+    apiKey: maskCred(VOLC_API_KEY),
     audioUrl: fileUrl.slice(0, 80) + '...',
   });
 
@@ -228,11 +257,7 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Api-App-Key': VOLC_APP_ID,
-      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
-      'X-Api-Resource-Id': resourceId,
-      'X-Api-Request-Id': requestId,
-      'X-Api-Sequence': '-1',
+      ...authHeaders(resourceId, requestId),
     },
     body: JSON.stringify(requestBody),
   });
@@ -273,16 +298,15 @@ async function queryASRResult(requestId: string, resourceId: string): Promise<{ 
   log('QUERY_REQUEST', '查询ASR结果', {
     url: queryUrl,
     requestId,
+    appId: maskCred(VOLC_APP_ID),
+    apiKey: maskCred(VOLC_API_KEY),
   });
 
   const response = await fetch(queryUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Api-App-Key': VOLC_APP_ID,
-      'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
-      'X-Api-Resource-Id': resourceId,
-      'X-Api-Request-Id': requestId,
+      ...authHeaders(resourceId, requestId),
     },
     body: JSON.stringify({}),
   });
