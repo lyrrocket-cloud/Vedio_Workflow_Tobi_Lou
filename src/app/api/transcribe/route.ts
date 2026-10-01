@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { S3Storage, ASRClient, Config } from 'coze-coding-dev-sdk';
 
 interface SubtitleSegment {
   id: number;
@@ -11,6 +11,9 @@ interface SubtitleSegment {
 const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
 const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
 const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.bigasr.auc';
+// 火山录音文件识别资源漫游列表：按顺序尝试，直到某资源授权成功
+const VOLC_RESOURCES = (process.env.VOLC_RESOURCES || 'volc.bigasr.auc,volc.seedasr.auc')
+  .split(',').map((s: string) => s.trim()).filter(Boolean);
 const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
 
 function log(stage: string, message: string, data?: Record<string, unknown>) {
@@ -192,7 +195,7 @@ function parseASRResult(data: Record<string, unknown>): SubtitleSegment[] {
   return result.length > 0 ? result : [];
 }
 
-async function submitASRTask(fileUrl: string, fileName: string, requestId: string): Promise<void> {
+async function submitASRTask(fileUrl: string, fileName: string, requestId: string, resourceId: string): Promise<void> {
   const submitUrl = `${VOLC_BASE_URL}/submit`;
   const format = getMediaFormat(fileName);
   
@@ -216,6 +219,7 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
     url: submitUrl,
     requestId,
     format,
+    resourceId,
     audioUrl: fileUrl.slice(0, 80) + '...',
   });
 
@@ -225,7 +229,7 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
       'Content-Type': 'application/json',
       'X-Api-App-Key': VOLC_APP_ID,
       'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
-      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Resource-Id': resourceId,
       'X-Api-Request-Id': requestId,
       'X-Api-Sequence': '-1',
     },
@@ -262,7 +266,7 @@ async function submitASRTask(fileUrl: string, fileName: string, requestId: strin
   log('SUBMIT_BODY', '提交任务响应体', { body: responseBody.slice(0, 200) });
 }
 
-async function queryASRResult(requestId: string): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
+async function queryASRResult(requestId: string, resourceId: string): Promise<{ status: string; segments?: SubtitleSegment[]; error?: string }> {
   const queryUrl = `${VOLC_BASE_URL}/query`;
 
   log('QUERY_REQUEST', '查询ASR结果', {
@@ -276,7 +280,7 @@ async function queryASRResult(requestId: string): Promise<{ status: string; segm
       'Content-Type': 'application/json',
       'X-Api-App-Key': VOLC_APP_ID,
       'X-Api-Access-Key': VOLC_ACCESS_TOKEN,
-      'X-Api-Resource-Id': VOLC_RESOURCE_ID,
+      'X-Api-Resource-Id': resourceId,
       'X-Api-Request-Id': requestId,
     },
     body: JSON.stringify({}),
@@ -308,44 +312,111 @@ async function queryASRResult(requestId: string): Promise<{ status: string; segm
     if (message && message.includes('no valid speech')) {
       return { status: 'succeeded', segments: [] };
     }
+    // 资源未授权/不可用：抛出特定错误让上层漫游到下一个资源
+    if (statusCode === '45000030' || statusCode === '45000000' || message?.includes('resource not granted') || message?.includes('is not allowed')) {
+      return { status: 'resource_locked', error: message || `错误码: ${statusCode}` };
+    }
     return { status: 'failed', error: message || `错误码: ${statusCode}` };
   }
 }
 
-async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
-  log('VOLC_TRANSCRIBE', '使用火山引擎录音文件识别', { fileName, resourceId: VOLC_RESOURCE_ID });
-  
-  const requestId = generateUUID();
-  
+// 按中文/英文标点切句，空句子会被合并到前一句
+// 注意：必须使用无副作用且不会死循环的分割方式（禁止 exec 空匹配循环）
+function splitSentences(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  // 在每组结束标点（含中文句读）之后切分，保持标点留在句子末尾
+  const parts = trimmed.split(/(?<=[。！？；;!?])/);
+  const sentences = parts.map((s) => s.trim()).filter((s) => s.length > 0);
+  if (sentences.length > 0) return sentences;
+  return [trimmed];
+}
+
+// 兜底通道：使用平台集成的 ASR（flash，始终授权）获取全文，再按字符比例切分时间码
+async function transcribeWithPlatformFallback(fileUrl: string): Promise<SubtitleSegment[]> {
+  log('FALLBACK_START', '火山资源均未授权，回退到平台集成ASR');
   try {
-    await submitASRTask(fileUrl, fileName, requestId);
+    const cfg = new Config();
+    const client = new ASRClient(cfg);
+    const result = await client.recognize({ uid: 'videoworkflow', url: fileUrl });
+    // 时长优先取自 rawData.audio_info.duration（平台 flash ASR 返回 ms），兜底再读顶层 duration（s）
+    const raw = (result as { rawData?: { audio_info?: { duration?: number } } }).rawData;
+    const rawDurationMs = raw?.audio_info?.duration;
+    const durationMs = rawDurationMs ? rawDurationMs / 1000 : ((result.duration || 0));
+    log('FALLBACK_RESULT', '平台ASR识别完成', { durationMs, textLen: result.text?.length });
+    const text = (result.text || '').trim();
+    if (!text) return [];
+    const sentences = splitSentences(text);
+    const totalChars = sentences.reduce((sum: number, s: string) => sum + s.length, 0) || 1;
+    let cursor = 0;
+    return sentences.map((sentence, i) => {
+      const start = i === 0 ? 0 : parseFloat(cursor.toFixed(3));
+      const segDuration = (sentence.length / totalChars) * durationMs;
+      cursor += segDuration;
+      const end = i === sentences.length - 1 ? parseFloat(durationMs.toFixed(3)) : parseFloat(cursor.toFixed(3));
+      return { id: i + 1, start, end, text: sentence };
+    });
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    if (errorMsg.includes('no valid speech')) {
+    const msg = error instanceof Error ? error.message : String(error);
+    log('FALLBACK_ERROR', '平台ASR失败', { error: msg.slice(0, 300) });
+    if (msg.includes('no valid speech') || msg.includes('20000003')) {
       return [];
     }
-    throw error;
+    throw new Error(`语音识别失败: ${msg}`);
   }
+}
+
+async function transcribeWithVolcSpeech(fileUrl: string, fileName: string): Promise<SubtitleSegment[]> {
+  log('VOLC_TRANSCRIBE', '使用火山引擎录音文件识别', { fileName, resources: VOLC_RESOURCES });
   
-  log('POLLING_START', '开始轮询ASR结果', { requestId });
+  let lastResourceError: string | null = null;
   
-  const maxWaitTime = 300;
-  const pollInterval = 3000;
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < maxWaitTime * 1000) {
-    await new Promise(resolve => setTimeout(resolve, pollInterval));
-    
-    const result = await queryASRResult(requestId);
-    
-    if (result.status === 'succeeded') {
-      return result.segments || [];
-    } else if (result.status === 'failed') {
-      throw new Error(result.error || 'ASR转写失败');
+  for (const resourceId of VOLC_RESOURCES) {
+    log('RESOURCE_TRY', '尝试ASR资源', { resourceId });
+    const requestId = generateUUID();
+    try {
+      await submitASRTask(fileUrl, fileName, requestId, resourceId);
+      log('POLLING_START', '开始轮询ASR结果', { requestId, resourceId });
+      
+      const maxWaitTime = 300;
+      const pollInterval = 3000;
+      const startTime = Date.now();
+      
+      while (Date.now() - startTime < maxWaitTime * 1000) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        const result = await queryASRResult(requestId, resourceId);
+        if (result.status === 'succeeded') {
+          return result.segments || [];
+        } else if (result.status === 'resource_locked') {
+          lastResourceError = result.error || 'resource not granted';
+          break; // 该资源未授权，尝试下一个
+        } else if (result.status === 'failed') {
+          throw new Error(result.error || 'ASR转写失败');
+        }
+      }
+      // 若循环里因 resource_locked 跳出，则继续尝试下一个资源
+      if (Date.now() - startTime >= maxWaitTime * 1000) {
+        throw new Error('ASR转写超时，请稍后重试');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg.includes('no valid speech')) {
+        return [];
+      }
+      if (errorMsg.includes('45000030') || errorMsg.includes('resource not granted') || errorMsg.includes('45000000') || errorMsg.includes('is not allowed')) {
+        lastResourceError = errorMsg;
+        log('RESOURCE_SKIP', '资源不可用，切换下一个', { resourceId, errorMsg });
+        continue; // 切换下一个资源
+      }
+      // 其他错误直接抛出（如超时、无有效语音等）
+      throw error;
     }
   }
   
-  throw new Error('ASR转写超时，请稍后重试');
+  // 所有资源都未授权：回退到平台集成ASR（保证可用），无逐句时间戳则按比例切分
+  log('ALL_RESOURCE_LOCKED', '所有火山资源未授权', { lastResourceError });
+  const segments = await transcribeWithPlatformFallback(fileUrl);
+  return segments;
 }
 
 export const runtime = 'nodejs';
