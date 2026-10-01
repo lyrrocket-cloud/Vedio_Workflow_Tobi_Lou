@@ -1,11 +1,27 @@
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-// ffmpeg-static 在 pnpm 下解析到包内静态二进制路径（不依赖系统 ffmpeg）
-// 该包仅导出 CommonJS 路径字符串
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ffmpegPath: string = require('ffmpeg-static') as string;
+
+// ffmpeg 二进制解析（不依赖安装期联网下载，避免构建沙箱无外网导致部署失败）
+// 优先级：显式环境变量 FFMPEG_PATH -> 仓库内 vendor 二进制 -> 系统 ffmpeg
+function resolveFfmpegPath(): string {
+  const envPath = process.env.FFMPEG_PATH;
+  if (envPath && existsSync(envPath)) return envPath;
+
+  const candidates = [
+    path.join(process.cwd(), 'vendor', 'ffmpeg-linux-x64'),
+    path.join(process.cwd(), 'vendor', 'ffmpeg'),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  return 'ffmpeg';
+}
+
+const ffmpegPath: string = resolveFfmpegPath();
 
 export interface SpeechRegion {
   start: number;

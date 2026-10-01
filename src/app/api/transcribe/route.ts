@@ -357,7 +357,7 @@ function splitSentences(text: string): string[] {
   return [trimmed];
 }
 
-// 兜底通道：平台 flash ASR（始终授权）拿全文 + ffmpeg-static 做能量 VAD 得到真实说话区间，
+// 兜底通道：平台 flash ASR（始终授权）拿全文 + vendor ffmpeg 做能量 VAD 得到真实说话区间，
 // 再把句子对齐到说话区间——停顿/无对话处不产生字幕
 async function transcribeWithPlatformFallback(fileUrl: string): Promise<SubtitleSegment[]> {
   log('FALLBACK_START', '火山资源均未授权，回退到平台集成ASR+VAD');
