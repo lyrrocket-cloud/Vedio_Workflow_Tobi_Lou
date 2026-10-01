@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage, ASRClient, Config } from 'coze-coding-dev-sdk';
+import { ASRClient, Config } from 'coze-coding-dev-sdk';
+import { detectSpeechFromUrl, alignSentencesToRegions } from '@/lib/vad';
 
 interface SubtitleSegment {
   id: number;
@@ -332,30 +333,18 @@ function splitSentences(text: string): string[] {
   return [trimmed];
 }
 
-// 兜底通道：使用平台集成的 ASR（flash，始终授权）获取全文，再按字符比例切分时间码
+// 兜底通道：平台 flash ASR（始终授权）拿全文 + ffmpeg-static 做能量 VAD 得到真实说话区间，
+// 再把句子对齐到说话区间——停顿/无对话处不产生字幕
 async function transcribeWithPlatformFallback(fileUrl: string): Promise<SubtitleSegment[]> {
-  log('FALLBACK_START', '火山资源均未授权，回退到平台集成ASR');
+  log('FALLBACK_START', '火山资源均未授权，回退到平台集成ASR+VAD');
+  let text = '';
   try {
     const cfg = new Config();
     const client = new ASRClient(cfg);
     const result = await client.recognize({ uid: 'videoworkflow', url: fileUrl });
-    // 时长优先取自 rawData.audio_info.duration（平台 flash ASR 返回 ms），兜底再读顶层 duration（s）
-    const raw = (result as { rawData?: { audio_info?: { duration?: number } } }).rawData;
-    const rawDurationMs = raw?.audio_info?.duration;
-    const durationMs = rawDurationMs ? rawDurationMs / 1000 : ((result.duration || 0));
-    log('FALLBACK_RESULT', '平台ASR识别完成', { durationMs, textLen: result.text?.length });
-    const text = (result.text || '').trim();
+    text = (result.text || '').trim();
+    log('FALLBACK_RESULT', '平台ASR识别完成', { textLen: text.length });
     if (!text) return [];
-    const sentences = splitSentences(text);
-    const totalChars = sentences.reduce((sum: number, s: string) => sum + s.length, 0) || 1;
-    let cursor = 0;
-    return sentences.map((sentence, i) => {
-      const start = i === 0 ? 0 : parseFloat(cursor.toFixed(3));
-      const segDuration = (sentence.length / totalChars) * durationMs;
-      cursor += segDuration;
-      const end = i === sentences.length - 1 ? parseFloat(durationMs.toFixed(3)) : parseFloat(cursor.toFixed(3));
-      return { id: i + 1, start, end, text: sentence };
-    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     log('FALLBACK_ERROR', '平台ASR失败', { error: msg.slice(0, 300) });
@@ -363,6 +352,25 @@ async function transcribeWithPlatformFallback(fileUrl: string): Promise<Subtitle
       return [];
     }
     throw new Error(`语音识别失败: ${msg}`);
+  }
+
+  const sentences = splitSentences(text);
+
+  try {
+    log('VAD_START', '开始检测真实说话区间');
+    const regions = await detectSpeechFromUrl(fileUrl);
+    log('VAD_RESULT', '说话区间检测完成', { regions: regions.length });
+    if (regions.length === 0) {
+      // 无任何说话区间：按无有效语音处理
+      return [];
+    }
+    const aligned = alignSentencesToRegions(sentences.map((s) => ({ text: s })), regions);
+    return aligned.map((seg, i) => ({ id: i + 1, start: seg.start, end: seg.end, text: seg.text }));
+  } catch (vadError) {
+    const vadMsg = vadError instanceof Error ? vadError.message : String(vadError);
+    log('VAD_ERROR', 'VAD检测失败，无法定位真实时间', { error: vadMsg.slice(0, 300) });
+    // VAD 失败时无法确定真实说话时间，直接报错而非生成与视频不匹配的字幕
+    throw new Error(`无法定位语音时间，请确认文件可正常播放：${vadMsg}`);
   }
 }
 
