@@ -73,11 +73,11 @@ export default function TransitionVideoGenerator() {
 
   // 音效生成状态
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
-  const [sfxSteps, setSfxSteps] = useState<number>(200);
-  const [sfxGuidanceScale, setSfxGuidanceScale] = useState<number>(3.5);
+  const [sfxDuration, setSfxDuration] = useState<number>(3);
+  const [sfxLoudness, setSfxLoudness] = useState<number>(0);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
-  const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; translatedPrompt: string; url: string; time: string}>>([]);
+  const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; url: string; duration?: number; time: string}>>([]);
 
   // 字幕生成状态
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
@@ -1291,33 +1291,33 @@ export default function TransitionVideoGenerator() {
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-[#FFFFFF]/70 text-sm">生成步数</Label>
-                        <span className="text-[#CEA472] text-sm">{sfxSteps}</span>
+                        <Label className="text-[#FFFFFF]/70 text-sm">音效时长</Label>
+                        <span className="text-[#CEA472] text-sm">{sfxDuration} 秒</span>
                       </div>
                       <Slider
-                        value={[sfxSteps]}
-                        onValueChange={(value) => setSfxSteps(value[0])}
-                        min={100}
-                        max={400}
-                        step={20}
+                        value={[sfxDuration]}
+                        onValueChange={(value) => setSfxDuration(value[0])}
+                        min={1}
+                        max={120}
+                        step={1}
                         className="w-full"
                       />
-                      <p className="text-xs text-[#FFFFFF]/40">步数越高，音效越精细，但生成时间更长</p>
+                      <p className="text-xs text-[#FFFFFF]/40">单次最长 120 秒，默认 3 秒</p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label className="text-[#FFFFFF]/70 text-sm">引导系数</Label>
-                        <span className="text-[#CEA472] text-sm">{sfxGuidanceScale}</span>
+                        <Label className="text-[#FFFFFF]/70 text-sm">音量</Label>
+                        <span className="text-[#CEA472] text-sm">{sfxLoudness === 0 ? '默认' : sfxLoudness}</span>
                       </div>
                       <Slider
-                        value={[sfxGuidanceScale]}
-                        onValueChange={(value) => setSfxGuidanceScale(value[0])}
-                        min={1}
-                        max={7}
-                        step={0.5}
+                        value={[sfxLoudness]}
+                        onValueChange={(value) => setSfxLoudness(value[0])}
+                        min={-50}
+                        max={100}
+                        step={5}
                         className="w-full"
                       />
-                      <p className="text-xs text-[#FFFFFF]/40">系数越高，越严格遵循提示词</p>
+                      <p className="text-xs text-[#FFFFFF]/40">-50 为 0.5 倍音量，100 为 2 倍音量</p>
                     </div>
                   </div>
                 </div>
@@ -1345,8 +1345,9 @@ export default function TransitionVideoGenerator() {
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ 
                             prompt: sfxPrompt,
-                            steps: sfxSteps,
-                            guidanceScale: sfxGuidanceScale,
+                            duration: sfxDuration,
+                            loudnessRate: sfxLoudness,
+                            outputFormat: 'mp3',
                           }),
                         });
                         const data = await response.json();
@@ -1356,8 +1357,8 @@ export default function TransitionVideoGenerator() {
                         setSfxHistory(prev => [{
                           id: taskId,
                           prompt: sfxPrompt.substring(0, 30) + (sfxPrompt.length > 30 ? '...' : ''),
-                          translatedPrompt: data.translatedPrompt || '',
                           url: data.audioUrl,
+                          duration: data.duration,
                           time: new Date().toLocaleTimeString(),
                         }, ...prev].slice(0, 10));
                       } catch (err) {
@@ -1404,10 +1405,9 @@ export default function TransitionVideoGenerator() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-[#FFFFFF]/80 truncate">{item.prompt}</p>
-                          {item.translatedPrompt && (
-                            <p className="text-xs text-[#CEA472]/70 truncate mt-0.5">{item.translatedPrompt}</p>
-                          )}
-                          <p className="text-xs text-[#FFFFFF]/40 mt-0.5">{item.time}</p>
+                          <p className="text-xs text-[#FFFFFF]/40 mt-0.5">
+                            {item.time}{typeof item.duration === 'number' ? ` · ${item.duration.toFixed(1)}s` : ''}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1">
                           <button

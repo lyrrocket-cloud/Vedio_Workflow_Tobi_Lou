@@ -1,290 +1,172 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { S3Storage } from 'coze-coding-dev-sdk';
 
-const GITEE_API_URL = 'https://ai.gitee.com/v1/async/audio/speech';
-const GITEE_API_TOKEN = process.env.GITEE_API_TOKEN || 'TZ2MDIJ9DO3MASXXKHIUUFUZMRGFB9JS7AZMBB4I';
+// 豆包音频生成（seed-audio-1.0）非流式接口
+const VOLC_AUDIO_CREATE_URL = 'https://openspeech.bytedance.com/api/v3/tts/create';
+const MODEL_NAME = 'seed-audio-1.0';
 
-export type SfxType = 'ambient' | 'fx' | 'music' | 'voice' | 'nature' | 'tech' | 'custom';
+// 鉴权：新版控制台单 API Key 优先，否则退回旧版 App ID + Access Key
+const VOLC_API_KEY = process.env.VOLC_API_KEY || '';
+const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
+const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
 
 interface SfxRequest {
   prompt: string;
-  sfxType?: SfxType;
-  duration?: number;
-  steps?: number;
-  guidanceScale?: number;
-  outputFormat?: string;
+  duration?: number; // 期望时长（秒），默认 3，上限 120
+  outputFormat?: 'mp3' | 'wav' | 'pcm' | 'ogg_opus';
+  loudnessRate?: number; // 音量 -50~100，默认 0
 }
 
-const SFX_TYPE_TEMPLATES: Record<SfxType, { prefix: string; defaultSteps: number; defaultGuidance: number }> = {
-  ambient: {
-    prefix: 'ambient soundscape, atmospheric background, immersive environment, subtle textures, ',
-    defaultSteps: 250,
-    defaultGuidance: 4.0,
-  },
-  fx: {
-    prefix: 'sound effect, cinematic foley, impactful, punchy, precise, professional audio design, ',
-    defaultSteps: 200,
-    defaultGuidance: 3.5,
-  },
-  music: {
-    prefix: 'background music, cinematic score, moody, emotional, melodic, instrumental, ',
-    defaultSteps: 300,
-    defaultGuidance: 5.0,
-  },
-  voice: {
-    prefix: 'vocal sound, voice effect, human voice, speech, vocalization, ',
-    defaultSteps: 200,
-    defaultGuidance: 3.0,
-  },
-  nature: {
-    prefix: 'natural sound, organic, environmental, outdoor, realistic nature recording, ',
-    defaultSteps: 220,
-    defaultGuidance: 3.8,
-  },
-  tech: {
-    prefix: 'electronic sound, futuristic, technological, digital, synthesized, sci-fi, ',
-    defaultSteps: 200,
-    defaultGuidance: 4.2,
-  },
-  custom: {
-    prefix: '',
-    defaultSteps: 200,
-    defaultGuidance: 3.5,
-  },
-};
-
-const SFX_PRESETS: Record<string, string> = {
-  'rain': 'Gentle rain falling on leaves and windows, soft patter, ambient atmosphere',
-  'thunder': 'Deep rumbling thunder in the distance, echoing, dramatic impact',
-  'wind': 'Whistling wind through trees, howling, atmospheric, natural',
-  'birds': 'Morning birds chirping and singing in a forest, peaceful nature sound',
-  'waves': 'Ocean waves crashing on shore, rhythmic, calming, coastal atmosphere',
-  'fire': 'Crackling fire, burning wood, warm ambiance, fireplace',
-  'footsteps': 'Footsteps on concrete floor, echoing in empty hallway, realistic foley',
-  'glass-break': 'Glass shattering, breaking sound effect, sharp and crisp',
-  'explosion': 'Dramatic explosion, deep bass impact, cinematic sound effect',
-  'magic': 'Magical sparkling sound, ethereal, shimmering, fantasy',
-  'digital': 'Digital glitch sound, futuristic tech, electronic beeps and pulses',
-  'heartbeat': 'Slow steady heartbeat, pulsing, suspenseful, dramatic',
-};
-
-async function translateAndOptimizePrompt(chineseText: string, requestHeaders: Headers, sfxType: SfxType): Promise<string> {
-  const config = new Config();
-  const customHeaders = HeaderUtils.extractForwardHeaders(requestHeaders);
-  const client = new LLMClient(config, customHeaders);
-
-  const typeTemplate = SFX_TYPE_TEMPLATES[sfxType];
-
-  const messages = [
-    {
-      role: 'system' as const,
-      content: `You are a world-class sound designer and audio engineer specializing in AI audio generation.
-Your task is to translate and optimize Chinese sound effect descriptions into professional English prompts for AudioFly AI audio generation model.
-
-CRITICAL RULES:
-1. OUTPUT ONLY the final English prompt - NO EXPLANATIONS, NO NOTES, NO QUOTATION MARKS
-2. The prompt must be vivid, detailed, and optimized for audio generation
-3. Use sound-specific vocabulary: timbre, pitch, volume, duration, texture, reverb, echo, distortion, etc.
-4. Include onomatopoeia where appropriate: whoosh, crackle, rumble, sizzle, thud, etc.
-5. Specify spatial characteristics: close-up, distant, echoing, muffled, immersive, stereo, surround
-6. Describe emotional/mood qualities: dramatic, suspenseful, calm, intense, mysterious, joyful
-7. Keep it concise but comprehensive - 1-3 sentences is ideal
-8. Focus on WHAT the sound SOUNDS LIKE, not what causes it
-9. ALWAYS include the type-specific prefix: "${typeTemplate.prefix}"
-
-EXAMPLES:
-- Chinese: "雨滴打在窗户上，远处有雷声"
-  English: "${typeTemplate.prefix}Raindrops pattering against glass window pane with distant rumbling thunder, soft ambient atmosphere, natural soundscape"
-
-- Chinese: "猫叫声"
-  English: "${typeTemplate.prefix}A cat meowing softly, clear and close-up, realistic feline vocalization"
-
-- Chinese: "森林里的鸟鸣"
-  English: "${typeTemplate.prefix}Birds chirping and singing in a lush forest, natural ambient soundscape, peaceful and calming"
-
-- Chinese: "爆炸声"
-  English: "${typeTemplate.prefix}Dramatic explosion with deep bass impact, sharp crackling debris, cinematic sound effect, powerful and intense"`,
-    },
-    { role: 'user' as const, content: chineseText },
-  ];
-
-  const response = await client.invoke(messages, {
-    model: 'doubao-seed-1-8-251228',
-    temperature: 0.2,
+// 生成请求追踪 ID
+function genRequestId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
   });
-
-  let result = response.content.trim();
-  
-  if (!result.startsWith(typeTemplate.prefix)) {
-    result = typeTemplate.prefix + result;
-  }
-  
-  return result;
 }
 
-async function submitTask(params: SfxRequest) {
-  const sfxType = params.sfxType || 'custom';
-  const template = SFX_TYPE_TEMPLATES[sfxType];
-  
-  const response = await fetch(GITEE_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GITEE_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: params.prompt,
-      model: 'AudioFly',
-      num_inference_steps: params.steps || template.defaultSteps,
-      guidance_scale: params.guidanceScale || template.defaultGuidance,
-      duration: params.duration || 3,
-      output_format: params.outputFormat || 'mp3',
-    }),
-  });
-
-  return response.json();
+// 构建鉴权 headers
+function buildAuthHeaders(requestId: string): Record<string, string> {
+  const base: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Api-Request-Id': requestId,
+  };
+  if (VOLC_API_KEY) {
+    base['X-Api-Key'] = VOLC_API_KEY;
+  } else {
+    base['X-Api-App-Id'] = VOLC_APP_ID;
+    base['X-Api-Access-Key'] = VOLC_ACCESS_TOKEN;
+  }
+  return base;
 }
 
-async function pollTask(taskId: string, maxAttempts: number = 90, interval: number = 5000): Promise<{ status: string; fileUrl?: string; error?: string }> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const response = await fetch(`https://ai.gitee.com/v1/task/${taskId}`, {
-        headers: {
-          'Authorization': `Bearer ${GITEE_API_TOKEN}`,
-        },
-      });
-
-      const result = await response.json();
-
-      if (result.error) {
-        return { status: 'failed', error: `${result.error}: ${result.message || 'Unknown error'}` };
-      }
-
-      const status = result.status;
-
-      if (status === 'success') {
-        const fileUrl = result.output?.file_url;
-        return { status: 'success', fileUrl };
-      } else if (status === 'failed' || status === 'cancelled') {
-        return { status: 'failed', error: `任务${status}` };
-      }
-
-      await new Promise(resolve => setTimeout(resolve, interval));
-    } catch (err) {
-      console.error('[SFX] Polling error:', err);
-      await new Promise(resolve => setTimeout(resolve, interval));
-    }
+// 将期望时长融入自然语言提示词（seed-audio-1.0 通过 text_prompt 控制总时长）
+function buildTextPrompt(prompt: string, durationSec: number): string {
+  const clean = prompt.trim();
+  // 用户已显式描述时长则不重复追加
+  if (/(\d+\s*(秒|s|sec|second)|时长|duration)/i.test(clean)) {
+    return clean;
   }
-
-  return { status: 'timeout', error: '任务超时' };
+  return `${clean}，音效时长约${durationSec}秒，纯净无杂音，结尾自然收束。`;
 }
 
 export async function POST(request: NextRequest) {
-  const body: SfxRequest = await request.json();
-  const { prompt, sfxType = 'custom', duration, steps, guidanceScale, outputFormat } = body;
+  const startedAt = Date.now();
+  let body: SfxRequest;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: '请求参数格式错误' }, { status: 400 });
+  }
 
+  const { prompt } = body;
   if (!prompt?.trim()) {
     return NextResponse.json({ error: '请输入音效描述' }, { status: 400 });
   }
 
-  if (!GITEE_API_TOKEN) {
-    return NextResponse.json({ error: '未配置 GITEE_API_TOKEN' }, { status: 500 });
-  }
+  // 参数收敛与边界保护
+  const rawDuration = Number(body.duration);
+  const duration = Number.isFinite(rawDuration) && rawDuration > 0 ? Math.min(Math.round(rawDuration), 120) : 3;
+  const format = body.outputFormat === 'wav' || body.outputFormat === 'pcm' || body.outputFormat === 'ogg_opus'
+    ? body.outputFormat
+    : 'mp3';
+  const rawLoudness = Number(body.loudnessRate);
+  const loudnessRate = Number.isFinite(rawLoudness)
+    ? Math.max(-50, Math.min(100, Math.round(rawLoudness)))
+    : 0;
 
-  console.log('[SFX] Original prompt:', prompt, 'Type:', sfxType);
+  const requestId = genRequestId();
+  const textPrompt = buildTextPrompt(prompt, duration);
+
+  console.log('[SFX] 生成请求', {
+    requestId,
+    duration,
+    format,
+    prompt: prompt.slice(0, 80),
+  });
 
   try {
-    let optimizedPrompt = prompt;
-    let isTranslated = false;
-
-    const isEnglish = /^[a-zA-Z0-9\s,.\-!?;:'"()]+$/.test(prompt.trim());
-    
-    if (!isEnglish) {
-      try {
-        optimizedPrompt = await translateAndOptimizePrompt(prompt, request.headers, sfxType);
-        isTranslated = true;
-        console.log('[SFX] Optimized prompt:', optimizedPrompt);
-      } catch (translateErr) {
-        console.warn('[SFX] Translation failed, using original prompt:', translateErr);
-        const template = SFX_TYPE_TEMPLATES[sfxType];
-        optimizedPrompt = template.prefix + prompt;
-      }
-    } else {
-      const template = SFX_TYPE_TEMPLATES[sfxType];
-      if (!prompt.startsWith(template.prefix)) {
-        optimizedPrompt = template.prefix + prompt;
-      }
-    }
-
-    const submitResult = await submitTask({ 
-      prompt: optimizedPrompt, 
-      sfxType, 
-      duration, 
-      steps, 
-      guidanceScale, 
-      outputFormat 
+    // 1. 调用豆包音频生成（非流式，同步返回 base64）
+    const resp = await fetch(VOLC_AUDIO_CREATE_URL, {
+      method: 'POST',
+      headers: buildAuthHeaders(requestId),
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        text_prompt: textPrompt,
+        audio_config: {
+          format,
+          ...(format === 'mp3' ? { sample_rate: 44100 } : {}),
+          loudness_rate: loudnessRate,
+        },
+      }),
     });
-    const taskId = submitResult.task_id;
 
-    if (!taskId) {
-      console.error('[SFX] Submit failed:', submitResult);
-      return NextResponse.json({ error: submitResult.error || submitResult.message || '任务提交失败' }, { status: 500 });
+    const data = await resp.json();
+
+    if (!resp.ok || (data.code !== undefined && data.code !== 0 && data.code !== 3000)) {
+      const message = data.message || `音效生成失败（HTTP ${resp.status}）`;
+      console.error('[SFX] 火山接口返回错误', { status: resp.status, code: data.code, message });
+      return NextResponse.json({ error: message, code: data.code }, { status: 502 });
     }
 
-    console.log('[SFX] Task submitted, taskId:', taskId);
-
-    const result = await pollTask(taskId);
-
-    if (result.status === 'success' && result.fileUrl) {
-      console.log('[SFX] Task completed, fileUrl:', result.fileUrl);
-      return NextResponse.json({
-        success: true,
-        audioUrl: result.fileUrl,
-        taskId,
-        originalPrompt: prompt,
-        translatedPrompt: optimizedPrompt,
-        isTranslated,
-        sfxType,
-      });
-    } else {
-      console.error('[SFX] Task failed:', result);
-      return NextResponse.json({
-        success: false,
-        error: result.error || '音效生成失败',
-        taskId,
-      }, { status: 500 });
+    const audioBase64: string | undefined = data.audio;
+    if (!audioBase64) {
+      console.error('[SFX] 响应缺少音频数据', data);
+      return NextResponse.json({ error: '音效生成失败：未返回音频数据' }, { status: 502 });
     }
-  } catch (err) {
-    console.error('[SFX] Generation error:', err);
+
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+
+    // 2. 持久化到对象存储（接口返回的 url 仅 2 小时有效）
+    const storage = new S3Storage({
+      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+      accessKey: '',
+      secretKey: '',
+      bucketName: process.env.COZE_BUCKET_NAME,
+      region: 'cn-beijing',
+    });
+
+    const ext = format === 'ogg_opus' ? 'ogg' : format;
+    const contentType = format === 'mp3'
+      ? 'audio/mpeg'
+      : format === 'wav'
+        ? 'audio/wav'
+        : format === 'ogg_opus'
+          ? 'audio/ogg'
+          : 'audio/L16';
+    const fileName = `sfx/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const key = await storage.uploadFile({
+      fileContent: audioBuffer,
+      fileName,
+      contentType,
+    });
+    const audioUrl = await storage.generatePresignedUrl({ key, expireTime: 604800 });
+
+    const totalTime = Date.now() - startedAt;
+    console.log('[SFX] 生成完成', {
+      requestId,
+      duration: data.duration,
+      originalDuration: data.original_duration,
+      bytes: audioBuffer.length,
+      totalTime: `${totalTime}ms`,
+    });
+
     return NextResponse.json({
-      error: err instanceof Error ? err.message : '音效生成失败',
-    }, { status: 500 });
+      success: true,
+      audioUrl,
+      duration: data.duration ?? duration,
+      originalDuration: data.original_duration ?? data.duration ?? duration,
+      format,
+      prompt,
+      textPrompt,
+    });
+  } catch (err) {
+    console.error('[SFX] 生成异常', err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : '音效生成失败' },
+      { status: 500 },
+    );
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    presets: SFX_PRESETS,
-    types: Object.keys(SFX_TYPE_TEMPLATES).map(key => ({
-      value: key,
-      label: {
-        ambient: '环境音效',
-        fx: '特效音效',
-        music: '背景音乐',
-        voice: '人声音效',
-        nature: '自然音效',
-        tech: '科技音效',
-        custom: '自定义',
-      }[key],
-      description: {
-        ambient: '氛围音、背景环境音',
-        fx: '动作特效、电影音效',
-        music: '背景音乐、配乐',
-        voice: '人声、说话声',
-        nature: '自然环境、户外声音',
-        tech: '电子、科幻、数字音效',
-        custom: '自定义描述',
-      }[key],
-    })),
-  });
 }
