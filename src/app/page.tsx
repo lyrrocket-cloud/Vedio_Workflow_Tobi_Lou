@@ -78,6 +78,10 @@ export default function TransitionVideoGenerator() {
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
   const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; url: string; duration?: number; time: string}>>([]);
+  // 参考图片（可选，走图片参考生成模式）
+  const [sfxImageFile, setSfxImageFile] = useState<File | null>(null);
+  const [sfxImagePreview, setSfxImagePreview] = useState<string>('');
+  const sfxImageInputRef = useRef<HTMLInputElement>(null);
 
   // 字幕生成状态
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
@@ -1287,6 +1291,62 @@ export default function TransitionVideoGenerator() {
                     className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
                   />
 
+                  {/* 参考图片（可选） */}
+                  <div className="space-y-2">
+                    <Label className="text-[#FFFFFF]/70 text-sm">参考图片（可选）</Label>
+                    <input
+                      ref={sfxImageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                          setSfxError('参考图片仅支持 jpeg/png/webp 格式');
+                          return;
+                        }
+                        if (file.size > 10 * 1024 * 1024) {
+                          setSfxError('参考图片大小不能超过 10MB');
+                          return;
+                        }
+                        setSfxError('');
+                        setSfxImageFile(file);
+                        setSfxImagePreview(URL.createObjectURL(file));
+                      }}
+                    />
+                    {sfxImagePreview ? (
+                      <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-[#CEA472]/30 group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={sfxImagePreview} alt="参考图片" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSfxImageFile(null);
+                            if (sfxImagePreview) URL.revokeObjectURL(sfxImagePreview);
+                            setSfxImagePreview('');
+                            if (sfxImageInputRef.current) sfxImageInputRef.current.value = '';
+                          }}
+                          className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-[#FFFFFF]/70 hover:text-red-400 transition-colors"
+                          title="移除图片"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => sfxImageInputRef.current?.click()}
+                        className="w-full border border-dashed border-[#CEA472]/30 rounded-xl p-4 flex items-center justify-center gap-2 text-[#FFFFFF]/50 hover:border-[#CEA472]/60 hover:text-[#CEA472] transition-colors text-sm"
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                        上传图片参考（jpeg/png/webp，≤10MB），将按画面生成匹配音效
+                      </button>
+                    )}
+                  </div>
+
                   {/* 参数调节 */}
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-2">
@@ -1340,6 +1400,11 @@ export default function TransitionVideoGenerator() {
                       const taskId = `sfx_${Date.now()}`;
 
                       try {
+                        // 有参考图片时先上传到对象存储获取 URL
+                        let imageUrl: string | undefined;
+                        if (sfxImageFile) {
+                          imageUrl = await uploadImage(sfxImageFile);
+                        }
                         const response = await fetch('/api/generate-sfx', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -1348,6 +1413,7 @@ export default function TransitionVideoGenerator() {
                             duration: sfxDuration,
                             loudnessRate: sfxLoudness,
                             outputFormat: 'mp3',
+                            ...(imageUrl ? { imageUrl } : {}),
                           }),
                         });
                         const data = await response.json();

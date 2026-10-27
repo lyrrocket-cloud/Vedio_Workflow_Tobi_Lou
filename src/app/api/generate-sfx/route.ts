@@ -15,6 +15,7 @@ interface SfxRequest {
   duration?: number; // 期望时长（秒），默认 3，上限 120
   outputFormat?: 'mp3' | 'wav' | 'pcm' | 'ogg_opus';
   loudnessRate?: number; // 音量 -50~100，默认 0
+  imageUrl?: string; // 参考图片 URL（可选，走图片参考生成模式）
 }
 
 // 生成请求追踪 ID
@@ -76,6 +77,12 @@ export async function POST(request: NextRequest) {
     ? Math.max(-50, Math.min(100, Math.round(rawLoudness)))
     : 0;
 
+  // 参考图片校验：仅允许 http(s) URL
+  const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
+  if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+    return NextResponse.json({ error: '参考图片地址不合法' }, { status: 400 });
+  }
+
   const requestId = genRequestId();
   const textPrompt = buildTextPrompt(prompt, duration);
 
@@ -83,6 +90,7 @@ export async function POST(request: NextRequest) {
     requestId,
     duration,
     format,
+    hasImage: Boolean(imageUrl),
     prompt: prompt.slice(0, 80),
   });
 
@@ -94,6 +102,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: MODEL_NAME,
         text_prompt: textPrompt,
+        ...(imageUrl ? { image_url: imageUrl } : {}),
         audio_config: {
           format,
           ...(format === 'mp3' ? { sample_rate: 44100 } : {}),
