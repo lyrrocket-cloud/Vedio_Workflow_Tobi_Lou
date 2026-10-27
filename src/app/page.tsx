@@ -1287,9 +1287,12 @@ export default function TransitionVideoGenerator() {
                   <Textarea
                     value={sfxPrompt}
                     onChange={(e) => setSfxPrompt(e.target.value)}
-                    placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声"
+                    placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声（仅生成纯音效，不含语音与背景音乐）"
                     className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
                   />
+                  <p className="text-[#FFFFFF]/40 text-xs">
+                    系统将强制生成纯音效：自动排除人声、语音对白与背景音乐（BGM）
+                  </p>
 
                   {/* 参考图片（可选） */}
                   <div className="space-y-2">

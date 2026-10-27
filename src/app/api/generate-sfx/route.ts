@@ -43,13 +43,16 @@ function buildAuthHeaders(requestId: string): Record<string, string> {
 }
 
 // 将期望时长融入自然语言提示词（seed-audio-1.0 通过 text_prompt 控制总时长）
+// 纯音效约束（无语音/无BGM）始终强制附加，保证产出纯净音效
 function buildTextPrompt(prompt: string, durationSec: number): string {
-  const clean = prompt.trim();
-  // 用户已显式描述时长则不重复追加
-  if (/(\d+\s*(秒|s|sec|second)|时长|duration)/i.test(clean)) {
-    return clean;
+  const clean = prompt.trim().replace(/[。；;，,\s]+$/, '');
+  const hasDuration = /(\d+\s*(秒|s|sec|second)|时长|duration)/i.test(clean);
+  const parts = [clean];
+  if (!hasDuration) {
+    parts.push(`音效时长约${durationSec}秒`);
   }
-  return `${clean}，音效时长约${durationSec}秒，纯净无杂音，结尾自然收束。`;
+  parts.push('纯音效，无人声、无语音、无对白、无旁白，无背景音乐、无BGM、无音乐旋律，纯净无杂音，结尾自然收束。');
+  return parts.join('，');
 }
 
 export async function POST(request: NextRequest) {
