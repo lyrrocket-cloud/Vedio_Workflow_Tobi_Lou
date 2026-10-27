@@ -13,9 +13,10 @@ const VOLC_APP_ID = process.env.VOLC_APP_ID || '3952155908';
 const VOLC_ACCESS_TOKEN = process.env.VOLC_ACCESS_TOKEN || 'gk141HY0oB44sIrT7HwycFUTL7JkgAkr';
 // 新版控制台：单个 API Key（X-Api-Key）。若配置则优先使用；否则退回旧版 App ID + Access Token
 const VOLC_API_KEY = process.env.VOLC_API_KEY || '';
-const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.bigasr.auc';
-// 火山录音文件识别资源漫游列表：按顺序尝试，直到某资源授权成功
-const VOLC_RESOURCES = (process.env.VOLC_RESOURCES || 'volc.bigasr.auc,volc.seedasr.auc')
+// 默认使用豆包录音文件识别 2.0（volc.seedasr.auc），1.0 作为兜底漫游资源
+const VOLC_RESOURCE_ID = process.env.VOLC_RESOURCE_ID || 'volc.seedasr.auc';
+// 火山录音文件识别资源漫游列表：按顺序尝试，直到某资源授权成功；默认 2.0 优先
+const VOLC_RESOURCES = (process.env.VOLC_RESOURCES || 'volc.seedasr.auc,volc.bigasr.auc')
   .split(',').map((s: string) => s.trim()).filter(Boolean);
 const VOLC_BASE_URL = process.env.VOLC_BASE_URL || 'https://openspeech.bytedance.com/api/v3/auc/bigmodel';
 
