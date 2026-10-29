@@ -74,7 +74,6 @@ export default function TransitionVideoGenerator() {
   // 音效生成状态
   const [sfxPrompt, setSfxPrompt] = useState<string>('');
   const [sfxDuration, setSfxDuration] = useState<number>(3);
-  const [sfxLoudness, setSfxLoudness] = useState<number>(0);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
   const [isGeneratingSfxPrompt, setIsGeneratingSfxPrompt] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
@@ -1441,37 +1440,20 @@ export default function TransitionVideoGenerator() {
                   </div>
 
                   {/* 参数调节 */}
-                  <div className="grid grid-cols-2 gap-4 pt-1">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-[#FFFFFF]/70 text-sm">音效时长</Label>
-                        <span className="text-[#CEA472] text-sm">{sfxDuration} 秒</span>
-                      </div>
-                      <Slider
-                        value={[sfxDuration]}
-                        onValueChange={(value) => setSfxDuration(value[0])}
-                        min={1}
-                        max={120}
-                        step={1}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-[#FFFFFF]/40">单次最长 120 秒，默认 3 秒</p>
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[#FFFFFF]/70 text-sm">音效时长</Label>
+                      <span className="text-[#CEA472] text-sm">{sfxDuration} 秒</span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-[#FFFFFF]/70 text-sm">音量</Label>
-                        <span className="text-[#CEA472] text-sm">{sfxLoudness === 0 ? '默认' : sfxLoudness}</span>
-                      </div>
-                      <Slider
-                        value={[sfxLoudness]}
-                        onValueChange={(value) => setSfxLoudness(value[0])}
-                        min={-50}
-                        max={100}
-                        step={5}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-[#FFFFFF]/40">-50 为 0.5 倍音量，100 为 2 倍音量</p>
-                    </div>
+                    <Slider
+                      value={[sfxDuration]}
+                      onValueChange={(value) => setSfxDuration(value[0])}
+                      min={1}
+                      max={120}
+                      step={1}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-[#FFFFFF]/40">单次最长 120 秒，默认 3 秒</p>
                   </div>
                 </div>
 
@@ -1504,7 +1486,6 @@ export default function TransitionVideoGenerator() {
                           body: JSON.stringify({ 
                             prompt: sfxPrompt,
                             duration: sfxDuration,
-                            loudnessRate: sfxLoudness,
                             outputFormat: 'mp3',
                             ...(imageUrl ? { imageUrl } : {}),
                           }),
