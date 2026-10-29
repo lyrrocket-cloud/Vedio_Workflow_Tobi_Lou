@@ -76,6 +76,7 @@ export default function TransitionVideoGenerator() {
   const [sfxDuration, setSfxDuration] = useState<number>(3);
   const [sfxLoudness, setSfxLoudness] = useState<number>(0);
   const [isGeneratingSfx, setIsGeneratingSfx] = useState<boolean>(false);
+  const [isGeneratingSfxPrompt, setIsGeneratingSfxPrompt] = useState<boolean>(false);
   const [sfxError, setSfxError] = useState<string>('');
   const [sfxHistory, setSfxHistory] = useState<Array<{id: string; prompt: string; url: string; duration?: number; time: string}>>([]);
   // 参考图片（可选，走图片参考生成模式）
@@ -386,6 +387,64 @@ export default function TransitionVideoGenerator() {
       throw new Error(data.error || '上传失败');
     }
     return data.url;
+  };
+
+  // 按钮1：AI 理解截图，流式生成音效提示词
+  const generateSfxPrompt = async () => {
+    if (!sfxImageFile) {
+      setSfxError('请先上传截图');
+      return;
+    }
+    setIsGeneratingSfxPrompt(true);
+    setSfxError('');
+    setSfxPrompt('');
+    try {
+      const imageUrl = await uploadImage(sfxImageFile);
+      const response = await fetch('/api/sfx-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || '理解图片失败');
+      }
+      if (!response.body) throw new Error('响应无数据流');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const evt of events) {
+          const line = evt.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.text) {
+              fullText += parsed.text;
+              setSfxPrompt(fullText);
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== 'Unexpected end of JSON input') throw e;
+          }
+        }
+      }
+      if (!fullText.trim()) throw new Error('模型未返回提示词，请重试');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '理解图片失败';
+      setSfxError(errorMessage);
+    } finally {
+      setIsGeneratingSfxPrompt(false);
+    }
   };
 
   // 异步模式生成视频
@@ -1279,24 +1338,17 @@ export default function TransitionVideoGenerator() {
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Volume2 className="w-5 h-5 text-[#CEA472]" />
-                  音效描述
+                  音效生成
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <Textarea
-                    value={sfxPrompt}
-                    onChange={(e) => setSfxPrompt(e.target.value)}
-                    placeholder="描述你想要生成的音效，例如：雨滴打在窗户上的声音，伴随着远处的雷声（仅生成纯音效，不含语音与背景音乐）"
-                    className="min-h-[120px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
-                  />
-                  <p className="text-[#FFFFFF]/40 text-xs">
-                    系统将强制生成纯音效：自动排除人声、语音对白与背景音乐（BGM）
-                  </p>
-
-                  {/* 参考图片（可选） */}
+                <div className="space-y-5">
+                  {/* 第一步：上传截图 */}
                   <div className="space-y-2">
-                    <Label className="text-[#FFFFFF]/70 text-sm">参考图片（可选）</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#CEA472]/20 text-[#CEA472] text-xs flex items-center justify-center font-semibold">1</span>
+                      <Label className="text-[#FFFFFF]/70 text-sm">上传画面截图</Label>
+                    </div>
                     <input
                       ref={sfxImageInputRef}
                       type="file"
@@ -1306,11 +1358,11 @@ export default function TransitionVideoGenerator() {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-                          setSfxError('参考图片仅支持 jpeg/png/webp 格式');
+                          setSfxError('截图仅支持 jpeg/png/webp 格式');
                           return;
                         }
                         if (file.size > 10 * 1024 * 1024) {
-                          setSfxError('参考图片大小不能超过 10MB');
+                          setSfxError('截图大小不能超过 10MB');
                           return;
                         }
                         setSfxError('');
@@ -1319,39 +1371,77 @@ export default function TransitionVideoGenerator() {
                       }}
                     />
                     {sfxImagePreview ? (
-                      <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-[#CEA472]/30 group">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={sfxImagePreview} alt="参考图片" className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSfxImageFile(null);
-                            if (sfxImagePreview) URL.revokeObjectURL(sfxImagePreview);
-                            setSfxImagePreview('');
-                            if (sfxImageInputRef.current) sfxImageInputRef.current.value = '';
-                          }}
-                          className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-[#FFFFFF]/70 hover:text-red-400 transition-colors"
-                          title="移除图片"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      <div className="flex items-start gap-3">
+                        <div className="relative w-40 h-24 rounded-xl overflow-hidden border border-[#CEA472]/30 group flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={sfxImagePreview} alt="画面截图" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSfxImageFile(null);
+                              if (sfxImagePreview) URL.revokeObjectURL(sfxImagePreview);
+                              setSfxImagePreview('');
+                              if (sfxImageInputRef.current) sfxImageInputRef.current.value = '';
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-[#FFFFFF]/70 hover:text-red-400 transition-colors"
+                            title="移除截图"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="text-xs text-[#FFFFFF]/40 pt-1">截图将作为音效生成的参考画面</p>
                       </div>
                     ) : (
                       <button
                         type="button"
                         onClick={() => sfxImageInputRef.current?.click()}
-                        className="w-full border border-dashed border-[#CEA472]/30 rounded-xl p-4 flex items-center justify-center gap-2 text-[#FFFFFF]/50 hover:border-[#CEA472]/60 hover:text-[#CEA472] transition-colors text-sm"
+                        className="w-full border border-dashed border-[#CEA472]/30 rounded-xl p-6 flex flex-col items-center justify-center gap-2 text-[#FFFFFF]/50 hover:border-[#CEA472]/60 hover:text-[#CEA472] transition-colors text-sm"
                       >
-                        <ImageIcon className="w-4 h-4" />
-                        上传图片参考（jpeg/png/webp，≤10MB），将按画面生成匹配音效
+                        <ImageIcon className="w-6 h-6" />
+                        <span>点击上传画面截图（jpeg/png/webp，≤10MB）</span>
                       </button>
                     )}
                   </div>
 
+                  {/* 第二步：AI 理解生成提示词 */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#CEA472]/20 text-[#CEA472] text-xs flex items-center justify-center font-semibold">2</span>
+                      <Label className="text-[#FFFFFF]/70 text-sm">AI 理解画面，生成音效提示词</Label>
+                    </div>
+                    <Button
+                      onClick={generateSfxPrompt}
+                      disabled={isGeneratingSfxPrompt || isGeneratingSfx || !sfxImageFile}
+                      variant="outline"
+                      className="w-full h-11 border-[#CEA472]/40 text-[#CEA472] hover:bg-[#CEA472]/10 hover:text-[#CEA472] rounded-xl transition-all duration-300 disabled:opacity-50"
+                    >
+                      {isGeneratingSfxPrompt ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          AI 正在理解画面...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          理解画面并生成提示词
+                        </>
+                      )}
+                    </Button>
+                    <Textarea
+                      value={sfxPrompt}
+                      onChange={(e) => setSfxPrompt(e.target.value)}
+                      placeholder="AI 生成的音效提示词将实时显示在这里，你也可以直接手动输入或编辑"
+                      className="min-h-[100px] bg-black/40 border-[#CEA472]/20 text-[#FFFFFF] placeholder:text-[#FFFFFF]/40 resize-none focus:border-[#CEA472]/60 focus:ring-[#CEA472]/20"
+                    />
+                    <p className="text-[#FFFFFF]/40 text-xs">
+                      系统将强制生成纯音效：自动排除人声、语音对白与背景音乐（BGM）
+                    </p>
+                  </div>
+
                   {/* 参数调节 */}
-                  <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4 pt-1">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-[#FFFFFF]/70 text-sm">音效时长</Label>
@@ -1395,7 +1485,7 @@ export default function TransitionVideoGenerator() {
                   <Button
                     onClick={async () => {
                       if (!sfxPrompt.trim()) {
-                        setSfxError('请输入音效描述');
+                        setSfxError('请先生成或输入音效提示词');
                         return;
                       }
                       setIsGeneratingSfx(true);
@@ -1437,7 +1527,7 @@ export default function TransitionVideoGenerator() {
                         setIsGeneratingSfx(false);
                       }
                     }}
-                    disabled={isGeneratingSfx || !sfxPrompt.trim()}
+                    disabled={isGeneratingSfx || isGeneratingSfxPrompt || !sfxPrompt.trim()}
                     className="w-full h-12 bg-[#CEA472] hover:bg-[#CEA472]/90 text-[#0a0a0f] font-semibold rounded-xl transition-all duration-300 disabled:opacity-50"
                   >
                     {isGeneratingSfx ? (
@@ -1447,7 +1537,7 @@ export default function TransitionVideoGenerator() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-5 h-5 mr-2" />
+                        <Volume2 className="w-5 h-5 mr-2" />
                         生成音效
                       </>
                     )}
