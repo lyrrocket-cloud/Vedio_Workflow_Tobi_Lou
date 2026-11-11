@@ -1,0 +1,25 @@
+# 依赖与构建产物（镜像内会重新构建）
+node_modules
+.next
+dist
+out
+build
+
+# 版本控制与本地文件
+.git
+.gitignore
+.uploads
+*.log
+
+# 环境变量（通过 compose 的 env 变量注入，不进镜像）
+.env
+.env.*
+
+# 文档与本地资源（不影响运行）
+*.md
+assets
+
+# Docker 自身
+Dockerfile
+.dockerignore
+docker-compose.yml
