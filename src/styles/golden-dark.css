@@ -104,6 +104,22 @@ body {
 }
 
 /* ==========================================================================
+   扁平强化：页面内统一去除全部圆角与描边（上传区虚线提示除外）
+   ========================================================================== */
+.gd-app *,
+.gd-app *::before,
+.gd-app *::after {
+  border-radius: 0 !important;
+  border-width: 0 !important;
+}
+.gd-app .gd-dropzone {
+  border: 1px dashed var(--gd-gold-30) !important;
+}
+.gd-app .gd-dropzone:hover {
+  border-color: var(--gd-gold-50) !important;
+}
+
+/* ==========================================================================
    L1 · 页面过渡：全屏遮罩淡出
    ========================================================================== */
 @keyframes gd-page-overlay-fade-out {

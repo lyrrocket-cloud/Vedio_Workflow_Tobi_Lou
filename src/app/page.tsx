@@ -726,34 +726,39 @@ export default function TransitionVideoGenerator() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0a0a0f]">
+    <div className="gd-app relative min-h-screen w-full">
+      {/* 雪山背景（固定，与旅行工具箱一致） */}
+      <div
+        className="fixed inset-0 -z-10 h-full w-full bg-cover bg-center bg-fixed"
+        style={{ backgroundImage: 'url(/matterhorn-bg.jpg)' }}
+      />
+      <div className="fixed inset-0 -z-10 bg-black/60" />
+
       {/* 环境层：常驻金色光斑 */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
         <div className="bg-blob-a" />
         <div className="bg-blob-b" />
         <div className="bg-blob-c" />
       </div>
 
-      <div className="container relative z-10 mx-auto max-w-5xl px-4 py-8">
+      <div className="relative z-10 px-3 py-6 sm:px-6">
+        <div className="mx-auto max-w-5xl px-4">
         {/* Header */}
-        <div className="mb-10 text-center">
-          <div className="flex flex-col items-center justify-center gap-4 mb-4">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             {/* 图标容器 - 金色衬底 */}
             <div
-              className="animate-hero-avatar w-20 h-20 flex items-center justify-center"
+              className="animate-hero-avatar w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 flex items-center justify-center"
               style={{ backgroundColor: '#CEA472' }}
             >
-              <Video className="w-10 h-10" style={{ color: '#0a0a0f' }} />
+              <Video className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" style={{ color: '#0a0a0f' }} />
             </div>
 
             {/* 主标题 */}
             <SplitTextTitle
-              className="text-4xl md:text-5xl font-bold text-white"
-              lines={[{ text: '视频工作流' }]}
+              className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold tracking-wide"
+              lines={[{ text: '视频工作流', className: 'text-[#CEA472]' }]}
             />
-            <p className="animate-hero-sub max-w-xl text-sm text-white/60">
-              首尾帧驱动的 AI 转场 · 配音 / 音效 / 字幕一体化工作流
-            </p>
           </div>
         </div>
 
@@ -1948,6 +1953,7 @@ export default function TransitionVideoGenerator() {
         {/* Footer */}
         <div className="text-center mt-12 text-[#FFFFFF]/30 text-sm">
           由 AI 视频生成模型驱动
+        </div>
         </div>
       </div>
     </div>
