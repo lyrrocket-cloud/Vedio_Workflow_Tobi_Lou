@@ -4,7 +4,7 @@
 FROM node:20-bookworm-slim AS deps
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 
 # ========== 阶段二：构建 Next.js 与自定义 Server ==========
@@ -40,7 +40,7 @@ EOF
 FROM node:20-bookworm-slim AS prod-deps
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile --prod
 
 # ========== 阶段四：运行镜像 ==========

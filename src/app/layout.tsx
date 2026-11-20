@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Inspector } from 'react-dev-inspector';
+import { SmoothScroll } from '@/components/golden/smooth-scroll';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -26,8 +27,9 @@ export default function RootLayout({
   const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
 
   return (
-    <html lang="en">
-      <body className={`antialiased`}>
+    <html lang="zh-CN" className="dark">
+      <body className="antialiased bg-[#0a0a0f] text-white">
+        <SmoothScroll />
         {isDev && <Inspector />}
         {children}
       </body>

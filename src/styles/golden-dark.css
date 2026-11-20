@@ -1,0 +1,332 @@
+/* ==========================================================================
+   Golden Dark UI — 设计令牌 + 动效库（按 golden-dark-ui v2 规范精简接入）
+   ========================================================================== */
+
+:root {
+  --gd-gold: #cea472;
+  --gd-gold-90: rgba(206, 164, 114, 0.9);
+  --gd-gold-70: rgba(206, 164, 114, 0.7);
+  --gd-gold-50: rgba(206, 164, 114, 0.5);
+  --gd-gold-30: rgba(206, 164, 114, 0.3);
+  --gd-gold-20: rgba(206, 164, 114, 0.2);
+  --gd-gold-10: rgba(206, 164, 114, 0.1);
+
+  --gd-bg: #0a0a0f;
+  --gd-bg-soft: #0d0d14;
+
+  --gd-text: #ffffff;
+  --gd-text-sub: rgba(255, 255, 255, 0.8);
+  --gd-text-muted: rgba(255, 255, 255, 0.6);
+
+  --gd-card: rgba(0, 0, 0, 0.4);
+  --gd-card-hover: rgba(0, 0, 0, 0.6);
+
+  --gd-font-sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --gd-radius: 0.625rem;
+  --gd-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gd-ease-hero: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ---- 基础 ---- */
+html {
+  /* 使用 Lenis 时不要开启原生平滑滚动，二者会冲突 */
+  scroll-behavior: auto;
+}
+
+body {
+  background-color: var(--gd-bg);
+  color: var(--gd-text);
+  font-family: var(--gd-font-sans);
+}
+
+/* ---- 内容卡片（扁平：无边框、无圆角） ---- */
+.gd-card {
+  background: var(--gd-card);
+  border: 0;
+  border-radius: 0;
+  transition: background-color 0.3s var(--gd-ease);
+}
+.gd-card:hover {
+  background: var(--gd-card-hover);
+}
+
+/* ---- 上传区（保留虚线可交互提示，但去掉圆角） ---- */
+.gd-dropzone {
+  border: 1px dashed var(--gd-gold-30);
+  border-radius: 0;
+  background: var(--gd-card);
+  transition:
+    border-color 0.3s var(--gd-ease),
+    background-color 0.3s var(--gd-ease);
+}
+.gd-dropzone:hover {
+  border-color: var(--gd-gold-50);
+  background: var(--gd-card-hover);
+}
+
+/* ==========================================================================
+   shadcn/ui 扁平化覆盖（unlayered，优先级高于 Tailwind utilities）
+   ========================================================================== */
+[data-slot='card'] {
+  border: 0;
+  border-radius: 0;
+  background: var(--gd-card);
+  transition: background-color 0.3s var(--gd-ease);
+}
+[data-slot='card']:hover {
+  background: var(--gd-card-hover);
+}
+
+[data-slot='tabs-list'] {
+  border: 0;
+  border-radius: 0;
+  background: var(--gd-card);
+  padding: 0.25rem;
+  height: auto;
+}
+[data-slot='tabs-trigger'] {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--gd-text-muted);
+  transition: color 0.25s ease, background-color 0.25s ease;
+}
+[data-slot='tabs-trigger']:hover {
+  color: var(--gd-text-sub);
+}
+[data-slot='tabs-trigger'][data-state='active'] {
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--gd-gold);
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   L1 · 页面过渡：全屏遮罩淡出
+   ========================================================================== */
+@keyframes gd-page-overlay-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.page-fade-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #0a0a0f;
+  pointer-events: none;
+  opacity: 1;
+  animation: gd-page-overlay-fade-out 0.4s ease-out forwards;
+}
+
+/* ==========================================================================
+   L0 · 背景光斑漂移（常驻氛围）
+   ========================================================================== */
+@keyframes drift-a {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(80px, -60px) scale(1.2);
+  }
+  100% {
+    transform: translate(-40px, 30px) scale(0.95);
+  }
+}
+@keyframes drift-b {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-60px, 80px) scale(1.15);
+  }
+  100% {
+    transform: translate(40px, -40px) scale(1.05);
+  }
+}
+@keyframes drift-c {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.06;
+  }
+  50% {
+    transform: translate(30px, -30px) scale(1.3);
+    opacity: 0.1;
+  }
+  100% {
+    transform: translate(-30px, 30px) scale(1);
+    opacity: 0.06;
+  }
+}
+
+.bg-blob-a,
+.bg-blob-b,
+.bg-blob-c {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.bg-blob-a {
+  width: 720px;
+  height: 720px;
+  top: -200px;
+  left: -200px;
+  background: radial-gradient(
+    circle,
+    rgba(206, 164, 114, 0.18) 0%,
+    rgba(206, 164, 114, 0.04) 45%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  animation: drift-a 28s ease-in-out infinite alternate;
+}
+.bg-blob-b {
+  width: 640px;
+  height: 640px;
+  bottom: -180px;
+  right: -160px;
+  background: radial-gradient(
+    circle,
+    rgba(0, 45, 40, 0.35) 0%,
+    rgba(0, 45, 40, 0.08) 50%,
+    transparent 70%
+  );
+  filter: blur(45px);
+  animation: drift-b 34s ease-in-out infinite alternate;
+}
+.bg-blob-c {
+  width: 420px;
+  height: 420px;
+  top: 45%;
+  left: 55%;
+  background: radial-gradient(circle, rgba(206, 164, 114, 0.12) 0%, transparent 65%);
+  filter: blur(35px);
+  animation: drift-c 22s ease-in-out infinite alternate;
+}
+
+/* ==========================================================================
+   L2 · Hero / 区块入场
+   ========================================================================== */
+@keyframes hero-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes hero-avatar-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-hero-title {
+  animation: hero-fade-up 0.9s var(--gd-ease-hero) 0.1s both;
+}
+.animate-hero-sub {
+  animation: hero-fade-up 0.9s var(--gd-ease-hero) 0.3s both;
+}
+.animate-hero-avatar {
+  animation: hero-avatar-in 1.1s var(--gd-ease-hero) both;
+}
+
+.split-char {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  will-change: transform, opacity, filter;
+}
+
+@keyframes section-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-section-in {
+  animation: section-fade-up 0.7s var(--gd-ease) both;
+}
+.animate-section-delay-1 {
+  animation-delay: 80ms;
+}
+.animate-section-delay-2 {
+  animation-delay: 160ms;
+}
+.animate-section-delay-3 {
+  animation-delay: 240ms;
+}
+.animate-section-delay-4 {
+  animation-delay: 320ms;
+}
+
+/* ==========================================================================
+   L3 · 列表卡片 / 骨架屏
+   ========================================================================== */
+@keyframes visit-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.visit-card-in {
+  animation: visit-card-in 0.55s var(--gd-ease) both;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(206, 164, 114, 0.06) 0%,
+    rgba(206, 164, 114, 0.2) 42%,
+    rgba(206, 164, 114, 0.06) 80%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   无障碍：减少动态效果
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .bg-blob-a,
+  .bg-blob-b,
+  .bg-blob-c,
+  .skeleton-shimmer {
+    animation: none !important;
+  }
+  .animate-hero-title,
+  .animate-hero-sub,
+  .animate-hero-avatar,
+  .animate-section-in,
+  .visit-card-in {
+    animation: none !important;
+  }
+}

@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Upload, Play, ArrowRight, Sparkles, Download, Image as ImageIcon, CheckCircle, Clock, Eye, XCircle, Monitor, RefreshCw, StopCircle, Video, ChevronDown, ChevronUp, Info, Trash2, Settings, Bot, Server, Mic, Volume2, FileText, Activity, Subtitles, FileVideo2, AudioLines } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SplitTextTitle } from '@/components/golden/split-text-title';
 
 interface UploadResponse {
   success: boolean;
@@ -725,59 +726,64 @@ export default function TransitionVideoGenerator() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] bg-cover bg-center bg-fixed bg-no-repeat relative" style={{ backgroundImage: 'url(https://code.coze.cn/api/sandbox/coze_coding/file/proxy?expire_time=-1&file_path=assets%2F20260226-113651.jpg&nonce=a15fb89a-7b6f-42f5-96a2-cabae4250535&project_id=7621104939930222628&sign=c5833d8e5d38ee15db957f67079aaae1ebebd3d2a5afee749e7fa9a00398639c)' }}>
-      {/* 背景遮罩层 */}
-      <div className="absolute inset-0 bg-[#0a0a0f]/80" />
-      
-      <div className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
+    <div className="relative min-h-screen overflow-hidden bg-[#0a0a0f]">
+      {/* 环境层：常驻金色光斑 */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="bg-blob-a" />
+        <div className="bg-blob-b" />
+        <div className="bg-blob-c" />
+      </div>
+
+      <div className="container relative z-10 mx-auto max-w-5xl px-4 py-8">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="mb-10 text-center">
           <div className="flex flex-col items-center justify-center gap-4 mb-4">
-            {/* 图标容器 - 金色衬底 + 黑色线框 */}
+            {/* 图标容器 - 金色衬底 */}
             <div
-              className="w-20 h-20 flex items-center justify-center rounded-2xl"
-              style={{
-                backgroundColor: '#CEA472',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2)'
-              }}
+              className="animate-hero-avatar w-20 h-20 flex items-center justify-center"
+              style={{ backgroundColor: '#CEA472' }}
             >
               <Video className="w-10 h-10" style={{ color: '#0a0a0f' }} />
             </div>
 
             {/* 主标题 */}
-            <h1 className="text-5xl font-bold text-white drop-shadow-lg">
-              视频工作流
-            </h1>
+            <SplitTextTitle
+              className="text-4xl md:text-5xl font-bold text-white"
+              lines={[{ text: '视频工作流' }]}
+            />
+            <p className="animate-hero-sub max-w-xl text-sm text-white/60">
+              首尾帧驱动的 AI 转场 · 配音 / 音效 / 字幕一体化工作流
+            </p>
           </div>
         </div>
 
-        <Tabs defaultValue="video" className="space-y-6">
+        <Tabs defaultValue="video" className="animate-section-in animate-section-delay-1 space-y-6">
           {/* 工作流Tab切换 */}
-          <TabsList className="grid w-full grid-cols-4 bg-black/40 backdrop-blur-sm border border-[#CEA472]/20">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger 
               value="video" 
-              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+              className="transition-colors duration-300"
             >
               <Video className="w-4 h-4 mr-2" />
               视频生成
             </TabsTrigger>
             <TabsTrigger 
               value="voiceover" 
-              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+              className="transition-colors duration-300"
             >
               <Mic className="w-4 h-4 mr-2" />
               配音生成
             </TabsTrigger>
             <TabsTrigger 
               value="sfx" 
-              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+              className="transition-colors duration-300"
             >
               <Volume2 className="w-4 h-4 mr-2" />
               音效生成
             </TabsTrigger>
             <TabsTrigger 
               value="subtitle" 
-              className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 text-[#FFFFFF]/60 hover:text-[#FFFFFF]/80 transition-all duration-300"
+              className="transition-colors duration-300"
             >
               <Subtitles className="w-4 h-4 mr-2" />
               字幕生成
@@ -787,7 +793,7 @@ export default function TransitionVideoGenerator() {
           {/* 视频生成Tab */}
           <TabsContent value="video" className="space-y-6 mt-0">
             {/* Image Upload Section */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-[#CEA472]" />
@@ -798,10 +804,8 @@ export default function TransitionVideoGenerator() {
                 <div className="grid grid-cols-2 gap-4">
                   {/* First Frame */}
                   <div
-                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
-                      firstFramePreview 
-                        ? 'border-[#CEA472] bg-black/60' 
-                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
+                    className={`gd-dropzone relative aspect-video cursor-pointer ${
+                      firstFramePreview ? 'bg-black/60' : ''
                     }`}
                     onDrop={(e) => handleDrop(e, setFirstFrame, setFirstFramePreview)}
                     onDragOver={(e) => e.preventDefault()}
@@ -811,7 +815,7 @@ export default function TransitionVideoGenerator() {
                       <img 
                         src={firstFramePreview} 
                         alt="首帧" 
-                        className="w-full h-full object-cover rounded-xl"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
@@ -834,10 +838,8 @@ export default function TransitionVideoGenerator() {
 
                   {/* Last Frame */}
                   <div
-                    className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
-                      lastFramePreview 
-                        ? 'border-[#CEA472] bg-black/60' 
-                        : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
+                    className={`gd-dropzone relative aspect-video cursor-pointer ${
+                      lastFramePreview ? 'bg-black/60' : ''
                     }`}
                     onDrop={(e) => handleDrop(e, setLastFrame, setLastFramePreview)}
                     onDragOver={(e) => e.preventDefault()}
@@ -847,7 +849,7 @@ export default function TransitionVideoGenerator() {
                       <img 
                         src={lastFramePreview} 
                         alt="尾帧" 
-                        className="w-full h-full object-cover rounded-xl"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-[#FFFFFF]/50">
@@ -914,7 +916,7 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* Settings Section */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Settings className="w-5 h-5 text-[#CEA472]" />
@@ -981,17 +983,17 @@ export default function TransitionVideoGenerator() {
                     onValueChange={(value) => setSelectedModel(value as 'coze' | 'ark')} 
                     className="w-full"
                   >
-                    <TabsList className="grid w-full grid-cols-2 bg-black/20 backdrop-blur-sm border border-[#CEA472]/20 rounded-lg p-1">
+                    <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger 
                         value="coze" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                        className="transition-colors duration-300"
                       >
                         <Bot className="w-4 h-4 mr-2" />
                         Coze Seedance 2.0
                       </TabsTrigger>
                       <TabsTrigger 
                         value="ark" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                        className="transition-colors duration-300"
                       >
                         <Server className="w-4 h-4 mr-2" />
                         Ark Seedance1.5 Pro
@@ -1026,7 +1028,7 @@ export default function TransitionVideoGenerator() {
 
             {/* Task Monitor - 移至主区域顶部 */}
             {true && (
-              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <Card className="gd-card">
                 <CardHeader>
                   <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                     <Activity className="w-5 h-5 text-[#CEA472]" />
@@ -1035,22 +1037,31 @@ export default function TransitionVideoGenerator() {
                 </CardHeader>
                 <CardContent>
                   {monitorLoading && monitorTasks.length === 0 ? (
-                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
-                      <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-[#CEA472]" />
-                      <p className="text-[#FFFFFF]/40 text-sm">加载任务列表...</p>
+                    /* 骨架屏：尺寸与真实任务行一致，禁止 spinner */
+                    <div className="gd-card overflow-hidden">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3">
+                          <div className="skeleton-shimmer h-4 w-4 shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="skeleton-shimmer h-3.5 w-2/5" />
+                            <div className="skeleton-shimmer h-3 w-1/4" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : monitorTasks.length === 0 ? (
-                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl p-8 text-center">
+                    <div className="gd-card p-8 text-center">
                       <p className="text-[#FFFFFF]/40 text-sm">暂无任务记录</p>
                       <p className="text-[#FFFFFF]/30 text-xs mt-1">生成视频后将显示在这里</p>
                     </div>
                   ) : (
-                    <div className="bg-black/40 border border-[#CEA472]/20 rounded-xl overflow-hidden">
+                    <div className="gd-card overflow-hidden">
                       <div className="max-h-[300px] overflow-y-scroll pr-1">
-                        {monitorTasks.map((task) => (
+                        {monitorTasks.map((task, index) => (
                           <div
                             key={task.id}
-                            className="flex items-center gap-3 p-3 border-b border-[#CEA472]/10 last:border-b-0 hover:bg-black/30 transition-colors"
+                            className="visit-card-in flex items-center gap-3 p-3 border-b border-white/5 last:border-b-0 hover:bg-black/30 transition-colors"
+                            style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
                           >
                             <span className="text-[#CEA472] shrink-0">
                               {task.status === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -1165,7 +1176,7 @@ export default function TransitionVideoGenerator() {
           {/* 配音生成Tab */}
           <TabsContent value="voiceover" className="space-y-6 mt-0">
             {/* 第一栏：文本输入 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#CEA472]" />
@@ -1200,7 +1211,7 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* 第二栏：音色设置 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Settings className="w-5 h-5 text-[#CEA472]" />
@@ -1229,7 +1240,7 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* 第三栏：任务监控 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Activity className="w-5 h-5 text-[#CEA472]" />
@@ -1333,7 +1344,7 @@ export default function TransitionVideoGenerator() {
           {/* 音效生成Tab */}
           <TabsContent value="sfx" className="space-y-6 mt-0">
             {/* 提示词输入区 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Volume2 className="w-5 h-5 text-[#CEA472]" />
@@ -1528,7 +1539,7 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* 任务监控区 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Activity className="w-5 h-5 text-[#CEA472]" />
@@ -1630,7 +1641,7 @@ export default function TransitionVideoGenerator() {
           {/* 字幕生成Tab */}
           <TabsContent value="subtitle" className="space-y-6 mt-0">
             {/* 文件上传区 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <FileVideo2 className="w-5 h-5 text-[#CEA472]" />
@@ -1639,10 +1650,8 @@ export default function TransitionVideoGenerator() {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`relative aspect-video rounded-xl border-2 border-dashed transition-all duration-300 cursor-pointer ${
-                    subtitleFile 
-                      ? 'border-[#CEA472] bg-black/60' 
-                      : 'border-[#CEA472]/30 hover:border-[#CEA472]/60 bg-black/40'
+                  className={`gd-dropzone relative aspect-video cursor-pointer ${
+                    subtitleFile ? 'bg-black/60' : ''
                   }`}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -1687,7 +1696,7 @@ export default function TransitionVideoGenerator() {
             </Card>
 
             {/* 生成设置 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Settings className="w-5 h-5 text-[#CEA472]" />
@@ -1703,16 +1712,16 @@ export default function TransitionVideoGenerator() {
                     onValueChange={(value) => setSubtitleFormat(value as 'srt' | 'fcpxml')} 
                     className="w-full"
                   >
-                    <TabsList className="grid w-full grid-cols-2 bg-black/20 backdrop-blur-sm border border-[#CEA472]/20 rounded-lg p-1">
+                    <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger 
                         value="srt" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                        className="transition-colors duration-300"
                       >
                         SRT 字幕
                       </TabsTrigger>
                       <TabsTrigger 
                         value="fcpxml" 
-                        className="data-[state=active]:text-[#CEA472] data-[state=active]:bg-black/60 data-[state=active]:shadow-sm text-[#FFFFFF]/40 hover:text-[#FFFFFF]/70 transition-all duration-300 rounded-md"
+                        className="transition-colors duration-300"
                       >
                         Final Cut Pro XML
                       </TabsTrigger>
@@ -1768,7 +1777,7 @@ export default function TransitionVideoGenerator() {
 
             {/* 字幕预览区 */}
             {subtitleSegments.length > 0 && (
-              <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+              <Card className="gd-card">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                     <Subtitles className="w-5 h-5 text-[#CEA472]" />
@@ -1809,7 +1818,7 @@ export default function TransitionVideoGenerator() {
             )}
 
             {/* 任务历史 */}
-            <Card className="border-[#CEA472]/10 bg-black/40 backdrop-blur-sm hover:border-[#CEA472]/30 transition-all duration-500">
+            <Card className="gd-card">
               <CardHeader>
                 <CardTitle className="text-[#FFFFFF] flex items-center gap-2">
                   <Activity className="w-5 h-5 text-[#CEA472]" />
