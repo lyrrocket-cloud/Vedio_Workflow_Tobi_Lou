@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { saveUploadFile, getUploadUrl } from '@/lib/local-upload';
 import { readFile, readdir, unlink, rmdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -60,25 +60,12 @@ export async function POST(request: NextRequest) {
     const ext = rawFileName?.split('.').pop() || 'bin';
     const keyName = `${folder}/${timestamp}_${randomSuffix}.${ext}`;
 
-    // Upload to S3
-    log('S3_UPLOAD_START', '开始上传到S3', { keyName });
-    const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: '',
-      secretKey: '',
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: 'cn-beijing',
-    });
+    // 写入 NAS 本地存储
+    log('LOCAL_UPLOAD_START', '开始写入本地存储', { keyName });
+    await saveUploadFile(keyName, fullBuffer);
+    const url = getUploadUrl(request, keyName);
 
-    const key = await storage.uploadFile({
-      fileContent: fullBuffer,
-      fileName: keyName,
-      contentType: contentType || 'application/octet-stream',
-    });
-
-    const url = await storage.generatePresignedUrl({ key, expireTime: 7200 });
-
-    log('S3_UPLOAD_DONE', 'S3上传完成', { key, totalTime: `${Date.now() - startTime}ms` });
+    log('LOCAL_UPLOAD_DONE', '本地写入完成', { key: keyName, totalTime: `${Date.now() - startTime}ms` });
 
     // Clean up chunks
     try {
@@ -93,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       url,
-      key,
+      key: keyName,
       uploadTime: Date.now() - startTime,
     });
   } catch (error) {

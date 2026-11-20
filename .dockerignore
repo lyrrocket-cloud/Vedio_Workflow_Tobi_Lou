@@ -23,3 +23,8 @@ assets
 Dockerfile
 .dockerignore
 docker-compose.yml
+frpc.toml
+
+# 本地临时/校验产物
+run-check
+.uploads

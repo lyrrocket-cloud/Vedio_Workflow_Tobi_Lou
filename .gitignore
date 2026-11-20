@@ -19,6 +19,8 @@ coverage/
 
 # Environment variables
 .env
+.env.nas
+frpc.toml
 .env.local
 .env.development.local
 .env.test.local

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { saveUploadFile, getUploadUrl } from '@/lib/local-upload';
 
 // 豆包音频生成（seed-audio-1.0）非流式接口
 const VOLC_AUDIO_CREATE_URL = 'https://openspeech.bytedance.com/api/v3/tts/create';
@@ -130,31 +130,12 @@ export async function POST(request: NextRequest) {
 
     const audioBuffer = Buffer.from(audioBase64, 'base64');
 
-    // 2. 持久化到对象存储（接口返回的 url 仅 2 小时有效）
-    const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: '',
-      secretKey: '',
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: 'cn-beijing',
-    });
-
+    // 2. 持久化到 NAS 本地存储（接口返回的 url 仅 2 小时有效）
     const ext = format === 'ogg_opus' ? 'ogg' : format;
-    const contentType = format === 'mp3'
-      ? 'audio/mpeg'
-      : format === 'wav'
-        ? 'audio/wav'
-        : format === 'ogg_opus'
-          ? 'audio/ogg'
-          : 'audio/L16';
     const fileName = `sfx/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-    const key = await storage.uploadFile({
-      fileContent: audioBuffer,
-      fileName,
-      contentType,
-    });
-    const audioUrl = await storage.generatePresignedUrl({ key, expireTime: 604800 });
+    await saveUploadFile(fileName, audioBuffer);
+    const audioUrl = getUploadUrl(request, fileName);
 
     const totalTime = Date.now() - startedAt;
     console.log('[SFX] 生成完成', {

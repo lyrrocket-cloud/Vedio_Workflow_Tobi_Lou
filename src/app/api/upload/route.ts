@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
+import { saveUploadFile, getUploadUrl } from '@/lib/local-upload';
 
 // Log helper with timestamp
 function log(stage: string, message: string, data?: Record<string, unknown>) {
@@ -61,16 +61,6 @@ export async function POST(request: NextRequest) {
       bufferSize: buffer.length,
     });
 
-    // Initialize S3 storage
-    log('S3_INIT', '初始化S3存储');
-    const storage = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: '',
-      secretKey: '',
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: 'cn-beijing',
-    });
-
     // Generate unique filename
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).slice(2, 8);
@@ -79,30 +69,17 @@ export async function POST(request: NextRequest) {
     const fileName = `${folder}/${timestamp}_${randomSuffix}.${ext}`;
     log('FILENAME', '生成文件名', { fileName });
 
-    // Upload to object storage
-    log('UPLOAD_START', '开始上传到对象存储');
+    // 写入 NAS 本地存储
+    log('UPLOAD_START', '开始写入本地存储');
     const uploadStartTime = Date.now();
-    const key = await storage.uploadFile({
-      fileContent: buffer,
-      fileName,
-      contentType: file.type,
-    });
-    log('UPLOAD_DONE', '上传完成', {
+    await saveUploadFile(fileName, buffer);
+    log('UPLOAD_DONE', '写入完成', {
       duration: `${Date.now() - uploadStartTime}ms`,
-      key,
+      fileName,
     });
 
-    // Generate presigned URL for access (extended to 2 hours for video generation)
-    log('URL_START', '开始生成预签名URL');
-    const urlStartTime = Date.now();
-    const url = await storage.generatePresignedUrl({
-      key,
-      expireTime: 7200, // 2 hours - enough time for video generation
-    });
-    log('URL_DONE', 'URL生成完成', {
-      duration: `${Date.now() - urlStartTime}ms`,
-      urlLength: url.length,
-    });
+    const url = getUploadUrl(request, fileName);
+    log('URL_DONE', 'URL生成完成', { urlLength: url.length });
 
     const totalTime = Date.now() - startTime;
     log('COMPLETE', '上传请求完成', { totalTime: `${totalTime}ms` });
@@ -110,7 +87,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       url,
-      key,
+      key: fileName,
       uploadTime: totalTime,
     });
   } catch (error) {
